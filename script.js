@@ -1,4 +1,3 @@
-const API_KEY = "64672e64858d59449d385e4df7e296d1";
 const FALLBACK_T=[
 ["Last Light Over Lagos","Series","2026","16+","3 seasons","Thriller","#ff7a3d,#7a1d3a","A power cut, a stolen archive, and one night to uncover who is rewriting the city's history."],
 ["Salt Road","Film","2025","13+","1h 52m","Adventure","#f2c14e,#a14a1c","Two estranged brothers drive a failing truck across the Sahel to deliver a shipment that cannot be late."],
@@ -31,6 +30,10 @@ const detailPoster=document.getElementById("detailPoster");
 const castList=document.getElementById("castList");
 const castCache=new Map();
 const imgBase="https://image.tmdb.org/t/p";
+function tmdbUrl(endpoint,params={}){
+  const query=new URLSearchParams({endpoint,...params});
+  return `/.netlify/functions/tmdb?${query}`;
+}
 function posterUrl(t){
   const entry = T[t];
   if (entry && entry.poster_url) return entry.poster_url;
@@ -122,11 +125,10 @@ function genreLabel(id){
   return map[id] || "Drama";
 }
 async function searchCatalog(term,token){
-  const encoded=encodeURIComponent(term);
   const results=await Promise.allSettled([
-    fetch(`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&language=en-US&include_adult=false&page=1&query=${encoded}`),
-    fetch(`https://api.themoviedb.org/3/search/tv?api_key=${API_KEY}&language=en-US&page=1&query=${encoded}`),
-    fetch(`https://api.tvmaze.com/search/shows?q=${encoded}`)
+    fetch(tmdbUrl("/3/search/movie",{language:"en-US",include_adult:"false",page:"1",query:term})),
+    fetch(tmdbUrl("/3/search/tv",{language:"en-US",page:"1",query:term})),
+    fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(term)}`)
   ]);
   if(token!==searchToken)return;
 
@@ -200,11 +202,11 @@ async function hydrateFromTMDB(){
     const releaseEnd = new Date().toISOString().slice(0, 10);
     const releaseStart = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const [moviesResult, trendingSeriesResult, tvmazeResult, newMoviesResult, newSeriesResult] = await Promise.allSettled([
-      fetch(`https://api.themoviedb.org/3/trending/movie/week?api_key=${API_KEY}&language=en-US&page=1`, {cache: "no-store"}),
-      fetch(`https://api.themoviedb.org/3/trending/tv/week?api_key=${API_KEY}&language=en-US&page=1`, {cache: "no-store"}),
+      fetch(tmdbUrl("/3/trending/movie/week",{language:"en-US",page:"1"}), {cache: "no-store"}),
+      fetch(tmdbUrl("/3/trending/tv/week",{language:"en-US",page:"1"}), {cache: "no-store"}),
       fetch("https://api.tvmaze.com/shows?page=0"),
-      fetch(`https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=en-US&sort_by=primary_release_date.desc&primary_release_date.gte=${releaseStart}&primary_release_date.lte=${releaseEnd}&page=1`),
-      fetch(`https://api.themoviedb.org/3/discover/tv?api_key=${API_KEY}&language=en-US&sort_by=first_air_date.desc&first_air_date.gte=${releaseStart}&first_air_date.lte=${releaseEnd}&page=1`)
+      fetch(tmdbUrl("/3/discover/movie",{language:"en-US",sort_by:"primary_release_date.desc","primary_release_date.gte":releaseStart,"primary_release_date.lte":releaseEnd,page:"1"})),
+      fetch(tmdbUrl("/3/discover/tv",{language:"en-US",sort_by:"first_air_date.desc","first_air_date.gte":releaseStart,"first_air_date.lte":releaseEnd,page:"1"}))
     ]);
 
     const movieResponse = moviesResult.status === "fulfilled" ? moviesResult.value : null;
@@ -414,7 +416,7 @@ function stopDetailStream(){
 async function findTmdbId(title){
   if(title.tmdbId)return title.tmdbId;
   const mediaType=title[1]==="Series"?"tv":"movie";
-  const response=await fetch(`https://api.themoviedb.org/3/search/${mediaType}?api_key=${API_KEY}&language=en-US&page=1&query=${encodeURIComponent(title[0])}`);
+  const response=await fetch(tmdbUrl(`/3/search/${mediaType}`,{language:"en-US",page:"1",query:title[0]}));
   if(!response.ok)throw new Error(`TMDB ${mediaType} lookup failed`);
   const data=await response.json();
   const results=data.results||[];
@@ -432,7 +434,7 @@ async function loadMainCast(index){
       const tmdbId=await findTmdbId(title);
       if(!tmdbId)throw new Error("No TMDB ID found for cast lookup");
       const mediaType=title[1]==="Series"?"tv":"movie";
-      const response=await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/credits?api_key=${API_KEY}&language=en-US`);
+      const response=await fetch(tmdbUrl(`/3/${mediaType}/${tmdbId}/credits`,{language:"en-US"}));
       if(!response.ok)throw new Error(`TMDB ${mediaType} credits request failed`);
       const data=await response.json();
       cast=(data.cast||[]).filter(person=>person.profile_path).slice(0,3);
