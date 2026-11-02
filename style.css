@@ -79,9 +79,41 @@ nav a:hover{color:#fff;text-shadow:0 0 10px var(--glow)}nav a.on{color:#fff;font
 .detail-player iframe,.detail-player video{display:block;width:100%;height:min(56vh,480px);min-height:220px;border:0;border-radius:4px;background:#000;object-fit:contain}
 .mb p.detail-player-message{max-width:none;margin:0;padding:24px;color:#ddd;text-align:center;background:#101014;border:1px solid #ffffff14;border-radius:4px}
 footer{padding:30px 4% 60px;color:var(--mut);font-size:13px;display:flex;gap:24px;flex-wrap:wrap}
-@media(max-width:760px){.detail-layout{grid-template-columns:minmax(110px,160px) minmax(0,1fr);gap:20px}.lead-cast{grid-column:2}.cast-list{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
-@media(max-width:760px){.nav-links{gap:16px}}
-@media(max-width:640px){nav{gap:16px}.search{display:none}.logo{font-size:28px}.nav-links{gap:16px}nav a.hm{display:none}.hero{min-height:78vh}.detail-layout{grid-template-columns:1fr;gap:20px}.detail-poster{width:min(44vw,200px)}.lead-cast{grid-column:1}.cast-list{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
+@media(max-width:760px){.detail-layout{grid-template-columns:minmax(110px,160px) minmax(0,1fr);gap:20px}.lead-cast{grid-column:2}.cast-list{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.nav-links{gap:16px}}
+@media(max-width:640px){
+  nav{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 12px;padding:calc(8px + env(safe-area-inset-top,0px)) 4% 10px}
+  .logo{grid-column:1;grid-row:1;font-size:28px;margin:0}
+  .sp{display:none}
+  .search{display:block;grid-column:2;grid-row:1;justify-self:end;width:min(42vw,220px);height:36px;padding-left:38px}
+  .search:focus{width:min(48vw,220px)}
+  .nav-links{position:static;grid-column:1/-1;grid-row:2;transform:none;justify-content:center;gap:clamp(12px,4vw,20px)}
+  nav a{font-size:13px}
+  .hero{min-height:78vh;min-height:78svh;padding:130px 5% 12vh}
+  .hero.series-featured{padding-top:140px}
+  .hero h1{font-size:clamp(46px,13vw,76px);overflow-wrap:anywhere}
+  .hero p{font-size:15px;max-width:42ch}
+  .rows{margin-top:-7vh}
+  .row h2{font-size:18px;margin-inline:5%}
+  .track{gap:8px;padding-inline:5%;scroll-padding-inline:5%}
+  .card{width:clamp(132px,40vw,180px);padding:11px}
+  .card b{font-size:24px}
+  .mh{height:min(38vh,360px);height:min(38svh,360px);min-height:220px;padding:24px}
+  .mh h3{font-size:clamp(38px,11vw,56px);overflow-wrap:anywhere}
+  .mb{padding:4px 16px 24px}
+  .detail-layout{grid-template-columns:minmax(100px,30vw) minmax(0,1fr);gap:16px}
+  .detail-poster{width:100%}
+  .detail-copy .btns{gap:8px}
+  .detail-copy .btn{padding:10px 13px;font-size:14px}
+  .meta{gap:8px;font-size:12px}
+  .detail-copy>p{font-size:14px;line-height:1.55}
+  .lead-cast{grid-column:1/-1}
+  .cast-list{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+  .cast-person img{width:48px;height:62px;flex-basis:48px}
+  .detail-player iframe,.detail-player video{height:52vh;min-height:200px}
+  footer{padding:24px 5% 40px;gap:16px}
+}
+@media(max-width:360px){.nav-links{gap:10px}nav a{font-size:12px}.search{width:38vw}.search:focus{width:42vw}.detail-layout{grid-template-columns:92px minmax(0,1fr);gap:12px}}
+@media(hover:none){.card:hover,.btn:hover,.x:hover{transform:none;box-shadow:none}}
 @keyframes brandGlow{0%,100%{text-shadow:0 0 8px rgba(59,130,246,.3)}50%{text-shadow:0 0 17px rgba(59,130,246,.65)}}
 @keyframes heroSweep{0%,65%,100%{background-position:150% 0}35%{background-position:-50% 0}}
 @keyframes rowRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
