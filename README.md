@@ -11,3 +11,7 @@ showFlix is a static website built with HTML, CSS, and JavaScript. No package in
 The key is only read by the Netlify Function and is not included in browser JavaScript. Since the previous key was embedded in client-side code, revoke or rotate it in TMDB and use the replacement as the Netlify environment variable.
 
 The included GitHub Pages workflow can still publish the static files, but GitHub Pages does not run Netlify Functions; TMDB-backed features require deploying to Netlify.
+
+## Copyright and license
+
+Copyright © 2026 Jeremy Kioko. All rights reserved. The original showFlix website code and original content are proprietary and may not be copied, modified, or redistributed without permission. This notice does not claim ownership of third-party trademarks, services, APIs, or media.
