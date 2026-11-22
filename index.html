@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=showflix-icon-20261102">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=mobile-layout-20261102">
+<link rel="stylesheet" href="style.css?v=add-icon-20261122">
 </head>
 <body>
 <nav id="nav">
@@ -16,6 +16,7 @@
     <a class="on" data-f="all">Home</a><a data-f="Film">Movies</a><a data-f="Series">Series</a><a class="hm" data-f="list">My List</a>
   </div>
   <span class="sp"></span>
+
   <input class="search" id="q" placeholder="Search titles" aria-label="Search titles">
 </nav>
 
@@ -64,8 +65,18 @@
         </aside>
       </div>
       <div class="detail-player" id="detailPlayer" hidden>
-        <iframe id="detailStream" title="Movie or series player" width="100%" height="100%" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen hidden></iframe>
-        <video id="detailVideo" controls playsinline preload="metadata" hidden></video>
+        <div class="episode-controls" id="episodeControls" hidden>
+          <label for="episodeSeason">Season
+            <select id="episodeSeason"></select>
+          </label>
+          <label for="episodeNumber">Episode
+            <select id="episodeNumber"></select>
+          </label>
+        </div>
+        <div class="player-frame" id="playerFrame" hidden>
+          <iframe id="detailStream" title="Movie or series player" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen hidden></iframe>
+          <video id="detailVideo" controls playsinline preload="metadata" hidden></video>
+        </div>
         <p class="detail-player-message" id="detailPlayerMessage" hidden></p>
       </div>
     </div>
@@ -74,6 +85,6 @@
 
 
 
-<script src="script.js?v=tmdb-netlify-env-20261102"></script>
+<script src="script.js?v=add-icon-20261122"></script>
 </body>
 </html>

@@ -17,14 +17,34 @@ let T=[];
 let R=[];
 let CATALOG=[];
 const rows=document.getElementById("rows"),modal=document.getElementById("modal");
-let filter="all",query="",list=new Set(),cur=0;
+const heroBanner=document.getElementById("hero");
+const FILTER_STORAGE_KEY="showflix:last-filter",LIST_STORAGE_KEY="showflix:list",INFO_STORAGE_KEY="showflix:last-info";
+const VALID_FILTERS=new Set(["all","Film","Series","list"]);
+const savedFilter=sessionStorage.getItem(FILTER_STORAGE_KEY);
+const savedList=sessionStorage.getItem(LIST_STORAGE_KEY);
+let list=new Set();
+if(savedList){
+  try{
+    const savedKeys=JSON.parse(savedList);
+    if(!Array.isArray(savedKeys)||savedKeys.some(key=>typeof key!=="string"))throw new Error("Saved list must be an array of title keys.");
+    list=new Set(savedKeys);
+  }catch(error){
+    console.warn("Could not restore your saved list.",error);
+  }
+}
+let filter=VALID_FILTERS.has(savedFilter)?savedFilter:"all",query="",cur=0,detailStreamRequest=0;
+document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.f===filter));
 let SEARCH_IDS=[],searchPending=false,searchToken=0,searchTimer=0;
 const g=t=>`linear-gradient(160deg,${T[t][6].split(",")[0]},${T[t][6].split(",")[1]})`;
 const titleKey=t=>t.contentKey||`${t[1]}:${t[0].trim().toLowerCase()}`;
 const detailPlayer=document.getElementById("detailPlayer");
 const detailStream=document.getElementById("detailStream");
 const detailVideo=document.getElementById("detailVideo");
+const playerFrame=document.getElementById("playerFrame");
 const detailPlayerMessage=document.getElementById("detailPlayerMessage");
+const episodeControls=document.getElementById("episodeControls");
+const episodeSeason=document.getElementById("episodeSeason");
+const episodeNumber=document.getElementById("episodeNumber");
 const detailPlayButton=document.getElementById("mplay");
 const detailPoster=document.getElementById("detailPoster");
 const castList=document.getElementById("castList");
@@ -61,11 +81,11 @@ function backdropStyle(t){
 function renderSearchResults(){
   rows.innerHTML="";
   if(searchPending){
-    rows.innerHTML="<p style=\"padding:20vh 4% 0;color:var(--mut)\">Searching titles...</p>";
+    rows.innerHTML="<p style=\"padding:20px 4% 0;color:var(--mut)\">Searching titles...</p>";
     return;
   }
   if(!SEARCH_IDS.length){
-    rows.innerHTML="<p style=\"padding:20vh 4% 0;color:var(--mut)\">No titles match your search. Try a different word.</p>";
+    rows.innerHTML="<p style=\"padding:20px 4% 0;color:var(--mut)\">No titles match your search. Try a different word.</p>";
     return;
   }
   const section=document.createElement("section");
@@ -74,26 +94,67 @@ function renderSearchResults(){
   heading.textContent="Search results";
   const track=document.createElement("div");
   track.className="track";
-  SEARCH_IDS.forEach(index=>{
-    const title=T[index];
-    const card=document.createElement("button");
-    card.className="card";
-    card.dataset.open=index;
-    card.setAttribute("aria-label",title[0]);
-    card.style.cssText=cardStyle(index);
-    const name=document.createElement("b");
-    name.textContent=title[0];
-    const meta=document.createElement("small");
-    meta.textContent=`${title[1]} · ${title[5]} · ${title[2]}`;
-    card.append(name,meta);
-    track.appendChild(card);
-  });
+  SEARCH_IDS.forEach(index=>track.appendChild(createTitleCard(index)));
   section.append(heading,track);
   rows.appendChild(section);
+  limitSearchRows();
+}
+function createTitleCard(index,position,top=false){
+  const title=T[index];
+  const wrapper=document.createElement("div");
+  wrapper.className="card-wrap";
+  const card=document.createElement("button");
+  card.type="button";
+  card.className="card";
+  card.dataset.open=String(index);
+  if(position)card.dataset.n=String(position);
+  card.style.cssText=cardStyle(index);
+  card.setAttribute("aria-label",title[0]);
+  if(top){
+    const badge=document.createElement("span");
+    badge.className="badge";
+    badge.textContent=`TOP ${position}`;
+    card.appendChild(badge);
+  }
+  const name=document.createElement("b");
+  name.textContent=title[0];
+  const meta=document.createElement("small");
+  meta.textContent=`${title[5]} · ${title[2]}`;
+  card.append(name,meta);
+  const listButton=document.createElement("button");
+  const isSaved=list.has(titleKey(title));
+  listButton.type="button";
+  listButton.className="card-list-add";
+  listButton.dataset.listAdd=String(index);
+  listButton.classList.toggle("added",isSaved);
+  listButton.setAttribute("aria-pressed",String(isSaved));
+  listButton.setAttribute("aria-label",`${isSaved?"Remove":"Add"} ${title[0]} ${isSaved?"from":"to"} My List`);
+  listButton.textContent=isSaved?"✓":"";
+  wrapper.append(card,listButton);
+  return wrapper;
+}
+function toggleListItem(index){
+  const title=T[index];
+  if(!title)throw new RangeError(`No title exists at index ${index}.`);
+  const key=titleKey(title);
+  if(list.has(key))list.delete(key);
+  else list.add(key);
+  sessionStorage.setItem(LIST_STORAGE_KEY,JSON.stringify([...list]));
+  return list.has(key);
+}
+function limitSearchRows(){
+  const track=rows.querySelector(".search-results .track");
+  if(!track)return;
+  const columns=getComputedStyle(track).gridTemplateColumns.split(/\s+/).length;
+  Array.from(track.children).forEach((card,index)=>{card.hidden=index>=columns*6});
 }
 function render(){
+  const searchActive=Boolean(query);
+  const noHero=searchActive||filter==="list";
+  heroBanner.hidden=noHero;
+  rows.classList.toggle("no-hero",noHero);
   rows.innerHTML="";
-  if(query){
+  if(searchActive){
     renderSearchResults();
     return;
   }
@@ -111,7 +172,12 @@ function render(){
     });
     if(!ids.length)return;
     const s=document.createElement("section");s.className="row"+(top?" top":"");
-    s.innerHTML=`<h2>${name}</h2><div class="track">${ids.map((i,n)=>`<button class="card" data-open="${i}" data-n="${n+1}" style="${cardStyle(i)}" aria-label="${T[i][0]}">${top?`<span class="badge">TOP ${n+1}</span>`:""}<b>${T[i][0]}</b><small>${T[i][5]} · ${T[i][2]}</small></button>`).join("")}</div>`;
+    const heading=document.createElement("h2");
+    heading.textContent=name;
+    const track=document.createElement("div");
+    track.className="track";
+    ids.forEach((index,n)=>track.appendChild(createTitleCard(index,n+1,Boolean(top))));
+    s.append(heading,track);
     rows.appendChild(s);
   });
   if(!rows.children.length)rows.innerHTML=`<p style="padding:20vh 4% 0;color:var(--mut)">${filter==="list"?"Your list is empty. Open a title and select My List to save it.":"No titles match your search. Try a different word."}</p>`;
@@ -197,6 +263,46 @@ async function searchCatalog(term,token){
   searchPending=false;
   render();
 }
+async function restoreLastInfoPage(){
+  const storedInfo=sessionStorage.getItem(INFO_STORAGE_KEY);
+  if(!storedInfo)return;
+  let info;
+  try{
+    info=JSON.parse(storedInfo);
+    if(!info||typeof info.key!=="string"||typeof info.name!=="string"||!["Film","Series"].includes(info.type)||typeof info.query!=="string")throw new Error("Saved title details are invalid.");
+  }catch(error){
+    console.warn("Could not restore the last title page.",error);
+    sessionStorage.removeItem(INFO_STORAGE_KEY);
+    return;
+  }
+  const findTitle=()=>{
+    let index=T.findIndex(title=>titleKey(title)===info.key);
+    if(index<0)index=T.findIndex(title=>title[1]===info.type&&title[0].trim().toLowerCase()===info.name.trim().toLowerCase());
+    return index;
+  };
+  if(info.query){
+    query=info.query;
+    q.value=query;
+    searchPending=true;
+    render();
+    const token=++searchToken;
+    await searchCatalog(query,token);
+    if(token!==searchToken)return;
+  }
+  let index=findTitle();
+  if(index<0){
+    query=info.name;
+    q.value=query;
+    searchPending=true;
+    render();
+    const token=++searchToken;
+    await searchCatalog(query,token);
+    if(token!==searchToken)return;
+    index=findTitle();
+  }
+  if(index>=0)open_(index);
+  else console.warn("The previously opened title is no longer available.");
+}
 async function hydrateFromTMDB(){
   try {
     const releaseEnd = new Date().toISOString().slice(0, 10);
@@ -226,7 +332,12 @@ async function hydrateFromTMDB(){
       "#34d399,#022c22","#60a5fa,#1e3a8a","#a78bfa,#1f2937","#93c5fd,#172554"
     ];
 
-    const movieEntries = (movies.results || []).slice(0, 6).map((item, index) => {
+    const movieResults = movies.results || [];
+    const movieEntries = (movieResults.length
+      ? movieResults.slice(0, 6)
+      : FALLBACK_T.filter(item => item[1] === "Film").map(item => item.slice())
+    ).map((item, index) => {
+      if (!item.id) return item;
       const [a, b] = palette[index % palette.length].split(",");
       const entry = [
         item.title || "Untitled",
@@ -363,8 +474,10 @@ async function hydrateFromTMDB(){
     ];
 
     CATALOG=T.slice();
-    setFeatured(featuredIndexFor(filter));
+    const featured=featuredIndexFor(filter);
+    setFeatured(featured>=0?featured:0);
     render();
+    await restoreLastInfoPage();
   } catch (error) {
     console.warn("Catalog APIs failed; no demo content will be shown.", error);
     T = [];
@@ -375,6 +488,7 @@ async function hydrateFromTMDB(){
 function open_(i){
   stopDetailStream();
   cur=i;const t=T[i];
+  sessionStorage.setItem(INFO_STORAGE_KEY,JSON.stringify({key:titleKey(t),name:t[0],type:t[1],query}));
   const backdrop = backdropUrl(i);
   const panel = document.getElementById("mh");
   panel.style.backgroundImage = backdrop ? `linear-gradient(0deg,#181818 0,#0000 70%),url(${backdrop})` : g(i);
@@ -402,9 +516,12 @@ function open_(i){
   loadMainCast(i);
 }
 function stopDetailStream(){
+  detailStreamRequest++;
   document.body.classList.remove("player-active");
   detailStream.removeAttribute("src");
   detailStream.hidden=true;
+  playerFrame.hidden=true;
+  episodeControls.hidden=true;
   detailVideo.pause();
   detailVideo.removeAttribute("src");
   detailVideo.load();
@@ -423,6 +540,68 @@ async function findTmdbId(title){
   const match=results.find(item=>(item.title||item.name||"").trim().toLowerCase()===title[0].trim().toLowerCase())||results[0];
   if(match?.id)title.tmdbId=match.id;
   return title.tmdbId||null;
+}
+async function loadSeriesSeasons(tmdbId){
+  const response=await fetch(tmdbUrl(`/3/tv/${tmdbId}`,{language:"en-US"}));
+  if(!response.ok)throw new Error("TMDB TV details request failed");
+  const data=await response.json();
+  const seasons=(data.seasons||[]).filter(season=>season.season_number>0&&season.episode_count>0);
+  if(!seasons.length)throw new Error("No seasons found for this series");
+  return seasons;
+}
+function setSeasonOptions(seasons){
+  episodeSeason.replaceChildren(...seasons.map(season=>{
+    const option=document.createElement("option");
+    option.value=String(season.season_number);
+    option.textContent=`Season ${season.season_number}`;
+    return option;
+  }));
+}
+async function loadSeriesEpisodes(tmdbId,seasonNumber){
+  const response=await fetch(tmdbUrl(`/3/tv/${tmdbId}/season/${seasonNumber}`,{language:"en-US"}));
+  if(!response.ok)throw new Error("TMDB season details request failed");
+  const data=await response.json();
+  const episodes=data.episodes||[];
+  if(!episodes.length)throw new Error("No episodes found for this season");
+  return episodes;
+}
+function setEpisodeOptions(episodes){
+  episodeNumber.replaceChildren(...episodes.map(episode=>{
+    const option=document.createElement("option");
+    option.value=String(episode.episode_number);
+    option.textContent=`Episode ${episode.episode_number}`;
+    return option;
+  }));
+}
+function playSelectedSeriesEpisode(tmdbId){
+  const season=Number(episodeSeason.value);
+  const episode=Number(episodeNumber.value);
+  if(!Number.isInteger(season)||season<1||!Number.isInteger(episode)||episode<1)return;
+  detailStream.src=`https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}`;
+}
+async function changeSeriesSeason(){
+  const title=T[cur];
+  const tmdbId=title&&title.tmdbId;
+  const index=cur;
+  if(!tmdbId)return;
+  const request=++detailStreamRequest;
+  detailStream.removeAttribute("src");
+  detailStream.hidden=true;
+  detailPlayerMessage.hidden=true;
+  try{
+    const episodes=await loadSeriesEpisodes(tmdbId,Number(episodeSeason.value));
+    if(request!==detailStreamRequest||cur!==index||T[index]!==title||!modal.classList.contains("open"))return;
+    setEpisodeOptions(episodes);
+    const firstEpisode=episodes[0].episode_number;
+    episodeNumber.value=String(firstEpisode);
+    playSelectedSeriesEpisode(tmdbId);
+    detailStream.hidden=false;
+  }catch(error){
+    console.warn("Could not load series episodes.",error);
+    if(request!==detailStreamRequest||cur!==index||T[index]!==title||!modal.classList.contains("open"))return;
+    detailPlayerMessage.textContent="Episodes could not be loaded for this season.";
+    detailPlayerMessage.hidden=false;
+  }
 }
 async function loadMainCast(index){
   const title=T[index];
@@ -475,8 +654,11 @@ async function playDetailStream(index){
   const title=T[index];
   if(!title)return;
   stopDetailStream();
+  const request=detailStreamRequest;
   document.body.classList.add("player-active");
   detailPlayer.hidden=false;
+  playerFrame.hidden=false;
+  requestAnimationFrame(()=>detailPlayer.scrollIntoView({behavior:"smooth",block:"start"}));
   detailPlayButton.textContent="Loading player...";
 
   if(VIDEOS[index]){
@@ -489,28 +671,75 @@ async function playDetailStream(index){
 
   try{
     const tmdbId=await findTmdbId(title);
-    if(cur!==index||!modal.classList.contains("open"))return;
+    if(request!==detailStreamRequest||cur!==index||!modal.classList.contains("open"))return;
     if(!tmdbId)throw new Error("No TMDB ID found for this title");
-    detailStream.src=title[1]==="Series"
-      ? `https://cinesrc.st/embed/tv/${tmdbId}`
-      : `https://cinesrc.st/embed/movie/${tmdbId}`;
+    if(title[1]==="Series"){
+      const seasons=await loadSeriesSeasons(tmdbId);
+      if(request!==detailStreamRequest||cur!==index||!modal.classList.contains("open"))return;
+      const firstSeason=seasons[0].season_number;
+      setSeasonOptions(seasons);
+      const episodes=await loadSeriesEpisodes(tmdbId,firstSeason);
+      if(request!==detailStreamRequest||cur!==index||!modal.classList.contains("open"))return;
+      const firstEpisode=episodes[0].episode_number;
+      setEpisodeOptions(episodes);
+      episodeSeason.value=String(firstSeason);
+      episodeNumber.value=String(firstEpisode);
+      episodeControls.hidden=false;
+      playSelectedSeriesEpisode(tmdbId);
+    }else{
+      detailStream.src=`https://vidcore.org/embed/movie/${tmdbId}`;
+    }
     detailStream.hidden=false;
     detailPlayButton.textContent="Hide player";
   }catch(error){
     console.warn("Could not load the title player.",error);
+    if(request!==detailStreamRequest||cur!==index||!modal.classList.contains("open"))return;
     document.body.classList.remove("player-active");
+    playerFrame.hidden=true;
     detailPlayerMessage.textContent="A player is not available for this title.";
     detailPlayerMessage.hidden=false;
     detailPlayButton.textContent="▶ Play";
   }
 }
-document.addEventListener("click",e=>{
-  const o=e.target.closest("[data-open]");if(o){pauseAutoTrailer();open_(+o.dataset.open);return}
-  const f=e.target.closest("nav a");if(f){filter=f.dataset.f;document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a===f));const featured=featuredIndexFor(filter);if(featured>=0)setFeatured(featured);render();return}
-  if(e.target===modal||e.target===x){pauseAutoTrailer();stopDetailStream();modal.classList.remove("open");}
+episodeSeason.addEventListener("change",changeSeriesSeason);
+episodeNumber.addEventListener("change",()=>{
+  const title=T[cur];
+  if(title&&title[1]==="Series"&&title.tmdbId)playSelectedSeriesEpisode(title.tmdbId);
 });
-add.onclick=()=>{const key=titleKey(T[cur]);list.has(key)?list.delete(key):list.add(key);add.textContent=list.has(key)?"✓ In My List":"+ My List";if(filter==="list")render()};
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){pauseAutoTrailer();stopDetailStream();modal.classList.remove("open")}});
+document.addEventListener("click",e=>{
+  const listButton=e.target.closest("[data-list-add]");
+  if(listButton){
+    const index=Number(listButton.dataset.listAdd);
+    const isSaved=toggleListItem(index);
+    const title=T[index];
+    listButton.classList.toggle("added",isSaved);
+    listButton.setAttribute("aria-pressed",String(isSaved));
+    listButton.setAttribute("aria-label",`${isSaved?"Remove":"Add"} ${title[0]} ${isSaved?"from":"to"} My List`);
+    listButton.textContent=isSaved?"✓":"";
+    if(filter==="list")render();
+    return;
+  }
+  const o=e.target.closest("[data-open]");if(o){pauseAutoTrailer();open_(+o.dataset.open);return}
+  const f=e.target.closest("nav a");if(f){
+    filter=f.dataset.f;
+    sessionStorage.setItem(FILTER_STORAGE_KEY,filter);
+    query="";
+    q.value="";
+    searchToken++;
+    clearTimeout(searchTimer);
+    SEARCH_IDS=[];
+    searchPending=false;
+    T=CATALOG.slice();
+    document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a===f));
+    const featured=featuredIndexFor(filter);
+    if(featured>=0)setFeatured(featured);
+    render();
+    return;
+  }
+  if(e.target===modal||e.target===x){sessionStorage.removeItem(INFO_STORAGE_KEY);pauseAutoTrailer();stopDetailStream();modal.classList.remove("open");}
+});
+add.onclick=()=>{const isSaved=toggleListItem(cur);add.textContent=isSaved?"✓ In My List":"+ My List";if(filter==="list")render()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&modal.classList.contains("open")){sessionStorage.removeItem(INFO_STORAGE_KEY);pauseAutoTrailer();stopDetailStream();modal.classList.remove("open")}});
 q.oninput=()=>{
   query=q.value.trim();
   searchToken++;
@@ -521,6 +750,7 @@ q.oninput=()=>{
   render();
   if(query)searchTimer=setTimeout(()=>searchCatalog(query,searchToken),250);
 };
+addEventListener("resize",()=>{if(query)limitSearchRows()},{passive:true});
 addEventListener("scroll",()=>{nav.classList.toggle("solid",scrollY>40);if(scrollY>250)pauseAutoTrailer();},{passive:true});
 
 /* ---------- Hero player ----------

@@ -2,6 +2,8 @@ const allowedEndpoints = [
   /^\/3\/trending\/(?:movie|tv)\/week$/,
   /^\/3\/discover\/(?:movie|tv)$/,
   /^\/3\/search\/(?:movie|tv)$/,
+  /^\/3\/tv\/\d+$/,
+  /^\/3\/tv\/\d+\/season\/\d+$/,
   /^\/3\/(?:movie|tv)\/\d+\/credits$/
 ];
 const allowedParams = new Set([
