@@ -12,7 +12,6 @@ const FALLBACK_T=[
 ["Daybreak Club","Series","2025","13+","3 seasons","Teen","#ff5ac8,#2b0b3a","Five students run a secret sunrise radio station from the school roof."],
 ["Ember","Film","2024","13+","2h 11m","Action","#60a5fa,#0f172a","A retired firefighter returns for one last rescue inside a burning port."]
 ];
-const FALLBACK_R=[["Trending now",[0,2,4,6,1,3,5,7]],["Top 10 this week",[4,0,6,2,10,1,11,5,9,8],1],["New releases",[5,9,11,10,7,3,8,2]],["Because you watched Night Market",[7,0,2,6,9,11,5,1]],["Watch with the family",[8,3,10,1,5,7,2,0]]];
 let T=[];
 let R=[];
 let CATALOG=[];
@@ -33,7 +32,13 @@ if(savedList){
   }
 }
 let filter=VALID_FILTERS.has(savedFilter)?savedFilter:"all",query="",cur=0,detailStreamRequest=0;
-document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.f===filter));
+let modalReturnFocus=null;
+document.querySelectorAll(".nav-links button").forEach(button=>{
+  const isCurrent=button.dataset.f===filter;
+  button.classList.toggle("on",isCurrent);
+  if(isCurrent)button.setAttribute("aria-current","page");
+  else button.removeAttribute("aria-current");
+});
 let SEARCH_IDS=[],searchPending=false,searchToken=0,searchTimer=0;
 const g=t=>`linear-gradient(160deg,${T[t][6].split(",")[0]},${T[t][6].split(",")[1]})`;
 const titleKey=t=>t.contentKey||`${t[1]}:${t[0].trim().toLowerCase()}`;
@@ -162,11 +167,35 @@ function render(){
     rows.innerHTML = "<p style=\"padding:20vh 4% 0;color:var(--mut)\">Loading titles...</p>";
     return;
   }
+  if(filter==="list"){
+    const listedIds=[];
+    const seen=new Set();
+    T.forEach((title,index)=>{
+      const key=titleKey(title);
+      if(list.has(key)&&!seen.has(key)){
+        seen.add(key);
+        listedIds.push(index);
+      }
+    });
+    if(!listedIds.length){
+      rows.innerHTML="<p style=\"padding:20vh 4% 0;color:var(--mut)\">Your list is empty. Open a title and select My List to save it.</p>";
+      return;
+    }
+    const section=document.createElement("section");
+    section.className="row";
+    const heading=document.createElement("h2");
+    heading.textContent="My List";
+    const track=document.createElement("div");
+    track.className="track";
+    listedIds.forEach(index=>track.appendChild(createTitleCard(index)));
+    section.append(heading,track);
+    rows.appendChild(section);
+    return;
+  }
   R.forEach(([name,ids,top])=>{
     ids=ids.filter(i=>{
       const t=T[i];
       if(!t)return false;
-      if(filter==="list")return list.has(titleKey(t));
       if(filter!=="all"&&t[1]!==filter)return false;
       return !query||t[0].toLowerCase().includes(query)||t[5].toLowerCase().includes(query);
     });
@@ -467,10 +496,10 @@ async function hydrateFromTMDB(){
 
     R = [
       ["Trending now", trendingIds.length ? trendingIds : T.slice(0, 8).map((_, index) => index)],
-      ["Top 10 this week", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 1],
+      [trendingIds.length ? "Trending highlights" : "Featured picks", trendingIds.length ? trendingIds.slice(0, 10) : T.slice(0, 10).map((_, index) => index), trendingIds.length ? 1 : 0],
       ["New releases", releaseIds],
-      ["Because you watched", [0, 3, 5, 6, 8, 9, 11, 1]],
-      ["Watch with the family", [8, 3, 10, 1, 5, 7, 2, 0]]
+      ["More to explore", [0, 3, 5, 6, 8, 9, 11, 1]],
+      ["Browse more titles", [8, 3, 10, 1, 5, 7, 2, 0]]
     ];
 
     CATALOG=T.slice();
@@ -487,6 +516,7 @@ async function hydrateFromTMDB(){
 }
 function open_(i){
   stopDetailStream();
+  if(!modal.classList.contains("open"))modalReturnFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
   cur=i;const t=T[i];
   sessionStorage.setItem(INFO_STORAGE_KEY,JSON.stringify({key:titleKey(t),name:t[0],type:t[1],query}));
   const backdrop = backdropUrl(i);
@@ -504,7 +534,11 @@ function open_(i){
   }else{
     detailPoster.alt="";
   }
-  mm.innerHTML=`<span class="g">98% match</span><span>${t[2]}</span><span>${t[3]}</span><span>${t[4]}</span><span>${t[5]}</span>`;
+  mm.replaceChildren(...[t[1],t[2],t[5]].map(value=>{
+    const item=document.createElement("span");
+    item.textContent=value;
+    return item;
+  }));
   md.textContent=t[7];
   castList.replaceChildren();
   const castLoading=document.createElement("p");
@@ -512,7 +546,10 @@ function open_(i){
   castLoading.textContent="Loading cast…";
   castList.appendChild(castLoading);
   add.textContent=list.has(titleKey(t))?"✓ In My List":"+ My List";
-  modal.classList.add("open");x.focus();
+  document.documentElement.classList.add("modal-open");
+  document.body.classList.add("modal-open");
+  modal.classList.add("open");
+  document.getElementById("x").focus();
   loadMainCast(i);
 }
 function stopDetailStream(){
@@ -720,7 +757,7 @@ document.addEventListener("click",e=>{
     return;
   }
   const o=e.target.closest("[data-open]");if(o){pauseAutoTrailer();open_(+o.dataset.open);return}
-  const f=e.target.closest("nav a");if(f){
+  const f=e.target.closest(".nav-links button");if(f){
     filter=f.dataset.f;
     sessionStorage.setItem(FILTER_STORAGE_KEY,filter);
     query="";
@@ -730,16 +767,58 @@ document.addEventListener("click",e=>{
     SEARCH_IDS=[];
     searchPending=false;
     T=CATALOG.slice();
-    document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a===f));
+    document.querySelectorAll(".nav-links button").forEach(button=>{
+      const isCurrent=button===f;
+      button.classList.toggle("on",isCurrent);
+      if(isCurrent)button.setAttribute("aria-current","page");
+      else button.removeAttribute("aria-current");
+    });
     const featured=featuredIndexFor(filter);
     if(featured>=0)setFeatured(featured);
     render();
     return;
   }
-  if(e.target===modal||e.target===x){sessionStorage.removeItem(INFO_STORAGE_KEY);pauseAutoTrailer();stopDetailStream();modal.classList.remove("open");}
+  if(e.target===modal||e.target===x)closeTitleModal();
 });
 add.onclick=()=>{const isSaved=toggleListItem(cur);add.textContent=isSaved?"✓ In My List":"+ My List";if(filter==="list")render()};
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&modal.classList.contains("open")){sessionStorage.removeItem(INFO_STORAGE_KEY);pauseAutoTrailer();stopDetailStream();modal.classList.remove("open")}});
+function closeTitleModal(){
+  sessionStorage.removeItem(INFO_STORAGE_KEY);
+  pauseAutoTrailer();
+  stopDetailStream();
+  modal.classList.remove("open");
+  document.documentElement.classList.remove("modal-open");
+  document.body.classList.remove("modal-open");
+  if(modalReturnFocus&&modalReturnFocus.isConnected)modalReturnFocus.focus();
+  modalReturnFocus=null;
+}
+document.addEventListener("focusin",event=>{
+  if(modal.classList.contains("open")&&!modal.contains(event.target))document.getElementById("x").focus();
+});
+document.addEventListener("keydown",e=>{
+  if(!modal.classList.contains("open"))return;
+  if(e.key==="Escape"){
+    closeTitleModal();
+    return;
+  }
+  if(e.key!=="Tab")return;
+  const focusable=Array.from(modal.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),iframe:not([hidden]),video[controls]:not([hidden]),[tabindex]:not([tabindex="-1"])'))
+    .filter(element=>element.getClientRects().length);
+  if(!focusable.length){
+    e.preventDefault();
+    return;
+  }
+  const first=focusable[0],last=focusable[focusable.length-1];
+  if(!modal.contains(document.activeElement)){
+    e.preventDefault();
+    first.focus();
+  }else if(e.shiftKey&&document.activeElement===first){
+    e.preventDefault();
+    last.focus();
+  }else if(!e.shiftKey&&document.activeElement===last){
+    e.preventDefault();
+    first.focus();
+  }
+});
 q.oninput=()=>{
   query=q.value.trim();
   searchToken++;

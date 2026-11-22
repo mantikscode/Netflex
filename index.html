@@ -7,13 +7,13 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=showflix-icon-20261102">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=more-info-vector-icon-20261122">
+<link rel="stylesheet" href="style.css?v=soft-player-corners-20261122">
 </head>
 <body>
-<nav id="nav">
+<nav id="nav" aria-label="Main navigation">
   <span class="logo"><span class="logo-show">show</span><span class="logo-flix">Flix</span></span>
   <div class="nav-links">
-    <a class="on" data-f="all">Home</a><a data-f="Film">Movies</a><a data-f="Series">Series</a><a class="hm" data-f="list">My List</a>
+    <button class="on" type="button" data-f="all" aria-current="page">Home</button><button type="button" data-f="Film">Movies</button><button type="button" data-f="Series">Series</button><button class="hm" type="button" data-f="list">My List</button>
   </div>
   <span class="sp"></span>
 
@@ -48,7 +48,7 @@
 
 <footer><span>Questions? Visit the Help Centre</span><span>Terms of Use</span><span>Privacy</span><span>Devices</span><span>© 2026 Jeremy Kioko. All rights reserved.</span></footer>
 
-<div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Title details">
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
   <div class="sheet">
     <div class="mh" id="mh"><button class="x" id="x" aria-label="Close">✕</button><h3 id="mt"></h3></div>
     <div class="mb">
@@ -74,7 +74,7 @@
           </label>
         </div>
         <div class="player-frame" id="playerFrame" hidden>
-          <iframe id="detailStream" title="Movie or series player" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen hidden></iframe>
+          <iframe id="detailStream" title="Movie or series player" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" hidden></iframe>
           <video id="detailVideo" controls playsinline preload="metadata" hidden></video>
         </div>
         <p class="detail-player-message" id="detailPlayerMessage" hidden></p>
@@ -85,6 +85,6 @@
 
 
 
-<script src="script.js?v=add-icon-20261122"></script>
+<script src="script.js?v=info-scroll-lock-20261122"></script>
 </body>
 </html>
