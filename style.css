@@ -190,10 +190,34 @@ nav.solid {
   padding-top: calc(100px + env(safe-area-inset-top,0px));
 }
 
+.hero-backdrops {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hero-backdrop {
+  position: absolute;
+  inset: -1%;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transform: scale(1.015);
+  transition: opacity .9s cubic-bezier(.22,.61,.36,1);
+}
+
+.hero-backdrop.active {
+  opacity: 1;
+}
+
 .hero::before {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   background: linear-gradient(90deg,#141414e6 0,#14141400 60%),linear-gradient(0deg,var(--bg) 0,#0000 35%);
 }
 
@@ -201,6 +225,7 @@ nav.solid {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
   background: linear-gradient(110deg,transparent 34%,rgba(59,130,246,.08) 50%,transparent 66%);
   background-size: 220% 100%;
@@ -211,6 +236,72 @@ nav.solid {
   position: relative;
   z-index: 2;
   max-width: 560px;
+}
+
+.hero .info.slide-enter {
+  animation: heroSlideEnter .65s cubic-bezier(.22,.61,.36,1) both;
+}
+
+.hero-slider-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  margin-top: 24px;
+}
+
+.hero-slide-arrow {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(15,15,20,.68);
+  transition: background .2s,border-color .2s;
+}
+
+.hero-slide-arrow svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hero-slide-arrow:hover {
+  border-color: #fff;
+  background: rgba(59,130,246,.8);
+}
+
+.hero-slide-dots {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.hero-slide-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(255,255,255,.55);
+  transition: width .2s,background .2s;
+}
+
+.hero-slide-dot[aria-current="true"] {
+  flex-basis: 22px;
+  width: 22px;
+  background: #fff;
 }
 
 [hidden] {
@@ -1081,6 +1172,17 @@ footer {
 
   35% {
     background-position: -50% 0;
+  }
+}
+
+@keyframes heroSlideEnter {
+  from {
+    opacity: .55;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

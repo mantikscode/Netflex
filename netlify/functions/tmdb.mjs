@@ -15,7 +15,11 @@ const allowedParams = new Set([
   "primary_release_date.gte",
   "primary_release_date.lte",
   "first_air_date.gte",
-  "first_air_date.lte"
+  "first_air_date.lte",
+  "vote_count.gte",
+  "with_genres",
+  "with_original_language",
+  "with_origin_country"
 ]);
 
 export default async function handler(request) {

@@ -15,13 +15,39 @@ const FALLBACK_T=[
 let T=[];
 let R=[];
 let CATALOG=[];
+let HOME_HERO_SLIDES=[],heroSlideIndex=0,heroSlideTimer=0;
 const rows=document.getElementById("rows"),modal=document.getElementById("modal");
 const heroBanner=document.getElementById("hero");
-const FILTER_STORAGE_KEY="showflix:last-filter",LIST_STORAGE_KEY="showflix:list",INFO_STORAGE_KEY="showflix:last-info";
+const heroInfo=document.getElementById("hinfo");
+const heroBackdropLayers=[
+  document.getElementById("heroBackdropA"),
+  document.getElementById("heroBackdropB")
+];
+const heroSliderControls=document.getElementById("heroSliderControls");
+const heroSlideDots=document.getElementById("heroSlideDots");
+const heroPrevButton=document.getElementById("heroPrev");
+const heroNextButton=document.getElementById("heroNext");
+const FILTER_STORAGE_KEY="showflix:last-filter",LIST_STORAGE_KEY="showflix:list",INFO_STORAGE_KEY="showflix:last-info",WATCH_STORAGE_KEY="showflix:continue-watching";
 const VALID_FILTERS=new Set(["all","Film","Series","list"]);
 const savedFilter=sessionStorage.getItem(FILTER_STORAGE_KEY);
 const savedList=sessionStorage.getItem(LIST_STORAGE_KEY);
 let list=new Set();
+let watchProgress=new Map();
+try{
+  const savedProgress=localStorage.getItem(WATCH_STORAGE_KEY);
+  if(savedProgress){
+    const records=JSON.parse(savedProgress);
+    if(!Array.isArray(records))throw new Error("Continue-watching data must be an array.");
+    records.forEach(record=>{
+      if(!record||typeof record.key!=="string"||!Number.isFinite(record.currentTime)||record.currentTime<0||!Number.isFinite(record.duration)||record.duration<=0||!Number.isFinite(record.updatedAt)){
+        throw new Error("Continue-watching data contains an invalid entry.");
+      }
+      watchProgress.set(record.key,record);
+    });
+  }
+}catch(error){
+  console.warn("Could not restore continue-watching progress.",error);
+}
 if(savedList){
   try{
     const savedKeys=JSON.parse(savedList);
@@ -32,6 +58,9 @@ if(savedList){
   }
 }
 let filter=VALID_FILTERS.has(savedFilter)?savedFilter:"all",query="",cur=0,detailStreamRequest=0;
+let detailPlayerWindow=null;
+let detailVideoTitle=null,heroVideoTitle=null;
+let activeHeroBackdrop=-1;
 let modalReturnFocus=null;
 document.querySelectorAll(".nav-links button").forEach(button=>{
   const isCurrent=button.dataset.f===filter;
@@ -159,6 +188,7 @@ function render(){
   const searchActive=Boolean(query);
   const noHero=searchActive||filter==="list";
   heroBanner.hidden=noHero;
+  renderHeroSlideControls();
   rows.classList.toggle("no-hero",noHero);
   rows.innerHTML="";
   if(searchActive){
@@ -194,7 +224,8 @@ function render(){
     rows.appendChild(section);
     return;
   }
-  R.forEach(([name,ids,top])=>{
+  R.forEach(([name,ids,top,sectionType])=>{
+    if(sectionType&&sectionType!==filter)return;
     ids=ids.filter(i=>{
       const t=T[i];
       if(!t)return false;
@@ -211,13 +242,75 @@ function render(){
     s.append(heading,track);
     rows.appendChild(s);
   });
+  if(filter==="all")renderContinueWatchingRow();
   if(!rows.children.length)rows.innerHTML=`<p style="padding:20vh 4% 0;color:var(--mut)">${filter==="list"?"Your list is empty. Open a title and select My List to save it.":"No titles match your search. Try a different word."}</p>`;
+}
+function renderContinueWatchingRow(){
+  const existing=rows.querySelector(".continue-watching");
+  if(filter!=="all"||query){
+    if(existing)existing.remove();
+    return;
+  }
+  const ids=[...watchProgress.values()]
+    .sort((first,second)=>second.updatedAt-first.updatedAt)
+    .map(record=>T.findIndex(title=>titleKey(title)===record.key))
+    .filter(index=>index>=0);
+  if(!ids.length){
+    if(existing)existing.remove();
+    return;
+  }
+  const section=document.createElement("section");
+  section.className="row continue-watching";
+  const heading=document.createElement("h2");
+  heading.textContent="Continue Watching";
+  const track=document.createElement("div");
+  track.className="track";
+  ids.forEach((index,n)=>track.appendChild(createTitleCard(index,n+1)));
+  section.append(heading,track);
+  if(existing)existing.replaceWith(section);
+  else rows.insertBefore(section,rows.firstChild);
+}
+function persistContinueWatching(){
+  try{
+    localStorage.setItem(WATCH_STORAGE_KEY,JSON.stringify([...watchProgress.values()]));
+  }catch(error){
+    console.warn("Could not save continue-watching progress.",error);
+  }
+}
+function saveContinueWatching(video,title,force=false){
+  if(!title||video.loop)return;
+  const key=titleKey(title);
+  if(video.ended){
+    if(watchProgress.delete(key)){
+      persistContinueWatching();
+      renderContinueWatchingRow();
+    }
+    return;
+  }
+  if(!Number.isFinite(video.duration)||video.duration<=0||video.currentTime<5)return;
+  const current=watchProgress.get(key);
+  const now=Date.now();
+  const isNew=!current;
+  if(force||isNew||Math.abs(video.currentTime-current.currentTime)>=10||now-current.updatedAt>=15000){
+    watchProgress.set(key,{key,currentTime:video.currentTime,duration:video.duration,updatedAt:now});
+    if(!CATALOG.some(item=>titleKey(item)===key))CATALOG.push(title);
+    persistContinueWatching();
+    if(isNew)renderContinueWatchingRow();
+  }
+}
+function resumeVideo(video,title){
+  const progress=watchProgress.get(titleKey(title));
+  if(!progress||!Number.isFinite(video.duration)||video.duration<=0)return;
+  const ratio=progress.currentTime/progress.duration;
+  if(ratio>0&&ratio<1)video.currentTime=Math.min(ratio*video.duration,video.duration-0.1);
 }
 function genreLabel(id){
   const map={
     28:"Action",12:"Adventure",16:"Animation",35:"Comedy",80:"Crime",99:"Documentary",
     18:"Drama",10751:"Family",14:"Fantasy",36:"History",27:"Horror",10402:"Music",
-    9648:"Mystery",10749:"Romance",878:"Sci-Fi",10770:"TV Movie",53:"Thriller",10752:"War",37:"Western"
+    9648:"Mystery",10749:"Romance",878:"Sci-Fi",10759:"Action & Adventure",10762:"Kids",
+    10763:"News",10764:"Reality",10765:"Sci-Fi & Fantasy",10766:"Soap",10767:"Talk",
+    10768:"War & Politics",10770:"TV Movie",53:"Thriller",10752:"War",37:"Western"
   };
   return map[id] || "Drama";
 }
@@ -300,6 +393,15 @@ async function searchCatalog(term,token){
       if(item[0].toLowerCase().includes(term.toLowerCase()))SEARCH_IDS.push(index);
     });
   }
+  const normalizedTerm=term.trim().toLowerCase();
+  const relevance=index=>{
+    const name=T[index][0].trim().toLowerCase();
+    if(name===normalizedTerm)return 0;
+    if(name.startsWith(normalizedTerm))return 1;
+    if(name.includes(normalizedTerm))return 2;
+    return 3;
+  };
+  SEARCH_IDS.sort((first,second)=>relevance(first)-relevance(second));
   searchPending=false;
   render();
 }
@@ -347,12 +449,28 @@ async function hydrateFromTMDB(){
   try {
     const releaseEnd = new Date().toISOString().slice(0, 10);
     const releaseStart = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const [moviesResult, trendingSeriesResult, tvmazeResult, newMoviesResult, newSeriesResult] = await Promise.allSettled([
+    const discoveryGenres=[
+      {type:"Film",mediaType:"movie",name:"Action & Adventure",genre:"28"},
+      {type:"Film",mediaType:"movie",name:"Comedy",genre:"35"},
+      {type:"Film",mediaType:"movie",name:"Drama",genre:"18"},
+      {type:"Film",mediaType:"movie",name:"Science Fiction",genre:"878"},
+      {type:"Film",mediaType:"movie",name:"Animation",genre:"16"},
+      {type:"Film",mediaType:"movie",name:"Horror",genre:"27"},
+      {type:"Series",mediaType:"tv",name:"Action & Adventure",genre:"10759"},
+      {type:"Series",mediaType:"tv",name:"Comedy",genre:"35"},
+      {type:"Series",mediaType:"tv",name:"Drama",genre:"18"},
+      {type:"Series",mediaType:"tv",name:"Crime",genre:"80"},
+      {type:"Series",mediaType:"tv",name:"Sci-Fi & Fantasy",genre:"10765"},
+      {type:"Series",mediaType:"tv",name:"Mystery",genre:"9648"}
+    ];
+    const [moviesResult, trendingSeriesResult, tvmazeResult, newMoviesResult, newSeriesResult, hollywoodMoviesResult, ...discoveryResults] = await Promise.allSettled([
       fetch(tmdbUrl("/3/trending/movie/week",{language:"en-US",page:"1"}), {cache: "no-store"}),
       fetch(tmdbUrl("/3/trending/tv/week",{language:"en-US",page:"1"}), {cache: "no-store"}),
       fetch("https://api.tvmaze.com/shows?page=0"),
-      fetch(tmdbUrl("/3/discover/movie",{language:"en-US",sort_by:"primary_release_date.desc","primary_release_date.gte":releaseStart,"primary_release_date.lte":releaseEnd,page:"1"})),
-      fetch(tmdbUrl("/3/discover/tv",{language:"en-US",sort_by:"first_air_date.desc","first_air_date.gte":releaseStart,"first_air_date.lte":releaseEnd,page:"1"}))
+      fetch(tmdbUrl("/3/discover/movie",{language:"en-US",sort_by:"primary_release_date.desc","primary_release_date.gte":releaseStart,"primary_release_date.lte":releaseEnd,"vote_count.gte":"25",page:"1"})),
+      fetch(tmdbUrl("/3/discover/tv",{language:"en-US",sort_by:"first_air_date.desc","first_air_date.gte":releaseStart,"first_air_date.lte":releaseEnd,"vote_count.gte":"25",page:"1"})),
+      fetch(tmdbUrl("/3/discover/movie",{language:"en-US",include_adult:"false",sort_by:"popularity.desc","primary_release_date.gte":releaseStart,"primary_release_date.lte":releaseEnd,with_original_language:"en",with_origin_country:"US",page:"1"})),
+      ...discoveryGenres.map(({mediaType,genre})=>fetch(tmdbUrl(`/3/discover/${mediaType}`,{language:"en-US",include_adult:"false",sort_by:"popularity.desc",with_genres:genre,page:"1"})))
     ]);
 
     const movieResponse = moviesResult.status === "fulfilled" ? moviesResult.value : null;
@@ -360,11 +478,13 @@ async function hydrateFromTMDB(){
     const tvmazeResponse = tvmazeResult.status === "fulfilled" ? tvmazeResult.value : null;
     const newMoviesResponse = newMoviesResult.status === "fulfilled" ? newMoviesResult.value : null;
     const newSeriesResponse = newSeriesResult.status === "fulfilled" ? newSeriesResult.value : null;
+    const hollywoodMoviesResponse = hollywoodMoviesResult.status === "fulfilled" ? hollywoodMoviesResult.value : null;
     const movies = movieResponse && movieResponse.ok ? await movieResponse.json() : {results: []};
     const trendingSeries = trendingSeriesResponse && trendingSeriesResponse.ok ? await trendingSeriesResponse.json() : {results: []};
     const tvmazeShows = tvmazeResponse && tvmazeResponse.ok ? await tvmazeResponse.json() : [];
     const newMovies = newMoviesResponse && newMoviesResponse.ok ? await newMoviesResponse.json() : {results: []};
     const newSeries = newSeriesResponse && newSeriesResponse.ok ? await newSeriesResponse.json() : {results: []};
+    const hollywoodMovies = hollywoodMoviesResponse && hollywoodMoviesResponse.ok ? await hollywoodMoviesResponse.json() : {results: []};
 
     const palette = [
       "#7c3aed,#1e1b4b","#f97316,#7c2d12","#22c55e,#14532d","#60a5fa,#0f172a",
@@ -431,19 +551,65 @@ async function hydrateFromTMDB(){
 
     if (!T.length) throw new Error("No movie or TVmaze data available");
 
-    const trendingItems = [
-      ...(movies.results || []).map(item => ({...item, media_type: "movie"})),
-      ...(trendingSeries.results || []).map(item => ({...item, media_type: "tv"}))
-    ].filter(item => item.poster_path)
-      .sort((first, second) => (second.popularity || 0) - (first.popularity || 0))
-      .slice(0, 12);
-    const trendingIds = [];
-    trendingItems.forEach((item, index) => {
-      const type = item.media_type === "tv" ? "Series" : "Film";
+    const genreRows=await Promise.all(discoveryGenres.map(async(genre,index)=>{
+      const result=discoveryResults[index];
+      if(result.status!=="fulfilled"){
+        console.warn(`TMDB ${genre.name} discovery failed.`,result.reason);
+        return [genre.name,[],0,genre.type];
+      }
+      if(!result.value.ok){
+        console.warn(`TMDB ${genre.name} discovery failed (${result.value.status}).`);
+        return [genre.name,[],0,genre.type];
+      }
+      let items;
+      try{
+        const data=await result.value.json();
+        items=data.results||[];
+      }catch(error){
+        console.warn(`Could not read TMDB ${genre.name} results.`,error);
+        return [genre.name,[],0,genre.type];
+      }
+      const ids=[];
+      items.forEach(item=>{
+        const title=item.title||item.name||"Untitled";
+        let titleIndex=T.findIndex(entry=>entry[1]===genre.type&&(
+          entry.tmdbId===item.id||entry[0].trim().toLowerCase()===title.trim().toLowerCase()
+        ));
+        if(titleIndex<0){
+          const [a,b]=palette[index%palette.length].split(",");
+          const mediaType=genre.type==="Film"?"movie":"tv";
+          const entry=[
+            title,
+            genre.type,
+            (item.release_date||item.first_air_date||"2026").slice(0,4),
+            item.adult?"18+":(item.vote_average>=7?"13+":"PG"),
+            "N/A",
+            genreLabel(item.genre_ids&&item.genre_ids[0]),
+            `${a},${b}`,
+            item.overview||`A ${genre.name.toLowerCase()} title.`
+          ];
+          entry.poster_path=item.poster_path||"";
+          entry.backdrop_path=item.backdrop_path||"";
+          entry.contentKey=`tmdb:${mediaType}:${item.id}`;
+          entry.tmdbId=item.id;
+          T.push(entry);
+          titleIndex=T.length-1;
+        }else if(genre.type==="Series"){
+          T[titleIndex].tmdbId=item.id;
+        }
+        ids.push(titleIndex);
+      });
+      return [genre.name,ids,0,genre.type];
+    }));
+
+    const addTrendingTitle=(item,type,index,fallback="Currently trending.")=>{
       const title = item.title || item.name || "Untitled";
-      let titleIndex = T.findIndex(entry => entry[1] === type && entry[0].toLowerCase() === title.toLowerCase());
+      let titleIndex = T.findIndex(entry => entry[1] === type && (
+        entry.tmdbId === item.id || entry[0].trim().toLowerCase() === title.trim().toLowerCase()
+      ));
       if (titleIndex < 0) {
         const [a, b] = palette[index % palette.length].split(",");
+        const mediaType=type==="Series"?"tv":"movie";
         const entry = [
           title,
           type,
@@ -452,19 +618,32 @@ async function hydrateFromTMDB(){
           "N/A",
           genreLabel(item.genre_ids && item.genre_ids[0]),
           `${a},${b}`,
-          item.overview || "Currently trending."
+          item.overview || fallback
         ];
         entry.poster_path = item.poster_path;
         entry.backdrop_path = item.backdrop_path || "";
-        entry.contentKey = `tmdb:${item.media_type}:${item.id}`;
+        entry.contentKey = `tmdb:${mediaType}:${item.id}`;
         entry.tmdbId = item.id;
         T.push(entry);
         titleIndex = T.length - 1;
-      } else if(type === "Series") {
+      }else{
         T[titleIndex].tmdbId = item.id;
       }
-      trendingIds.push(titleIndex);
-    });
+      return titleIndex;
+    };
+    const trendingMovieIds=(movies.results||[]).filter(item=>item.poster_path)
+      .map((item,index)=>addTrendingTitle(item,"Film",index));
+    const trendingSeriesIds=(trendingSeries.results||[]).filter(item=>item.poster_path)
+      .map((item,index)=>addTrendingTitle(item,"Series",index));
+    const trendingItems = [
+      ...(movies.results || []).map(item => ({...item, media_type: "movie"})),
+      ...(trendingSeries.results || []).map(item => ({...item, media_type: "tv"}))
+    ].filter(item => item.poster_path)
+      .sort((first, second) => (second.popularity || 0) - (first.popularity || 0))
+      .slice(0, 12);
+    const trendingIds=trendingItems.map((item,index)=>
+      addTrendingTitle(item,item.media_type==="tv"?"Series":"Film",index)
+    );
 
     const latestItems = [
       ...(newMovies.results || []).map(item => ({...item, media_type: "movie"})),
@@ -505,19 +684,49 @@ async function hydrateFromTMDB(){
         if (entry[2] >= releaseStart.slice(0, 4)) releaseIds.push(index);
       });
     }
+    const alreadyFeatured=new Set([...trendingIds,...releaseIds]);
+    const browseMoreIds=[...new Set(genreRows.flatMap(([,ids])=>ids))]
+      .filter(index=>!alreadyFeatured.has(index)&&T[index]?.poster_path)
+      .slice(0,12);
+
+    const heroMovieResults=hollywoodMovies.results?.length
+      ? hollywoodMovies.results
+      : (newMovies.results||[]).filter(item=>item.original_language==="en");
+    const newestMovieIds=heroMovieResults
+      .filter(item=>item.poster_path&&item.release_date)
+      .sort((first,second)=>(second.popularity||0)-(first.popularity||0)||second.release_date.localeCompare(first.release_date))
+      .slice(0,8)
+      .map((item,index)=>addTrendingTitle(item,"Film",index,"A recent movie."));
+    const newestSeriesIds=(newSeries.results||[])
+      .filter(item=>item.poster_path&&item.first_air_date&&item.original_language==="en")
+      .sort((first,second)=>(second.popularity||0)-(first.popularity||0)||second.first_air_date.localeCompare(first.first_air_date))
+      .slice(0,2)
+      .map((item,index)=>addTrendingTitle(item,"Series",index,"A recent series."));
+    HOME_HERO_SLIDES=[];
+    for(let index=0;index<Math.max(newestMovieIds.length,newestSeriesIds.length);index++){
+      if(newestMovieIds[index]!==undefined)HOME_HERO_SLIDES.push(newestMovieIds[index]);
+      if(newestSeriesIds[index]!==undefined)HOME_HERO_SLIDES.push(newestSeriesIds[index]);
+    }
+    if(!HOME_HERO_SLIDES.length)HOME_HERO_SLIDES=releaseIds.slice(0,12);
+    heroSlideIndex=0;
 
     R = [
-      ["Trending now", trendingIds.length ? trendingIds : T.slice(0, 8).map((_, index) => index)],
-      [trendingIds.length ? "Trending highlights" : "Featured picks", trendingIds.length ? trendingIds.slice(0, 10) : T.slice(0, 10).map((_, index) => index), trendingIds.length ? 1 : 0],
+      ["Trending now", trendingIds.length ? trendingIds : T.slice(0, 8).map((_, index) => index),0,"all"],
+      ["Trending movies",trendingMovieIds,1,"Film"],
+      ["Trending shows",trendingSeriesIds,1,"Series"],
       ["New releases", releaseIds],
-      ["More to explore", [0, 3, 5, 6, 8, 9, 11, 1]],
-      ["Browse more titles", [8, 3, 10, 1, 5, 7, 2, 0]]
+      ["Browse more titles", browseMoreIds,0,"all"],
+      ...genreRows
     ];
 
     CATALOG=T.slice();
-    const featured=featuredIndexFor(filter);
-    setFeatured(featured>=0?featured:0);
+    if(filter==="all"&&HOME_HERO_SLIDES.length)setHomeSlide(0);
+    else{
+      const featured=featuredIndexFor(filter);
+      setFeatured(featured>=0?featured:0);
+    }
     render();
+    startHomeSlideshow();
     await restoreLastInfoPage();
   } catch (error) {
     console.warn("Catalog APIs failed; no demo content will be shown.", error);
@@ -527,6 +736,7 @@ async function hydrateFromTMDB(){
   }
 }
 function open_(i){
+  stopHomeSlideshow();
   stopDetailStream();
   if(!modal.classList.contains("open"))modalReturnFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
   cur=i;const t=T[i];
@@ -567,12 +777,17 @@ function open_(i){
 function stopDetailStream(){
   detailStreamRequest++;
   document.body.classList.remove("player-active");
+  if(detailPlayerWindow&&!detailPlayerWindow.closed)detailPlayerWindow.close();
+  detailPlayerWindow=null;
   detailStream.removeAttribute("src");
   externalPlayerLink.removeAttribute("href");
   externalPlayerLink.hidden=true;
   detailStream.hidden=true;
   playerFrame.hidden=true;
   episodeControls.hidden=true;
+  if(detailVideoTitle)saveContinueWatching(detailVideo,detailVideoTitle,true);
+  detailVideoTitle=null;
+  detailVideo.onloadedmetadata=null;
   detailVideo.pause();
   detailVideo.removeAttribute("src");
   detailVideo.load();
@@ -580,6 +795,27 @@ function stopDetailStream(){
   detailPlayerMessage.hidden=true;
   detailPlayer.hidden=true;
   detailPlayButton.textContent="▶ Play";
+}
+function launchDetailPlayer(url){
+  externalPlayerLink.href=url;
+  externalPlayerLink.hidden=false;
+  if(window.self===window.top){
+    detailStream.src=url;
+    detailStream.hidden=false;
+    playerFrame.hidden=false;
+    detailPlayerMessage.hidden=true;
+    return;
+  }
+  detailStream.removeAttribute("src");
+  detailStream.hidden=true;
+  playerFrame.hidden=true;
+  if(detailPlayerWindow&&!detailPlayerWindow.closed){
+    detailPlayerWindow.location.replace(url);
+    detailPlayerMessage.textContent="The player is open in a separate tab.";
+  }else{
+    detailPlayerMessage.textContent="This preview may block the player. Use the link below, or open this website directly in your browser.";
+  }
+  detailPlayerMessage.hidden=false;
 }
 async function findTmdbId(title){
   if(title.tmdbId)return title.tmdbId;
@@ -674,9 +910,7 @@ function playSelectedSeriesEpisode(tmdbId){
   const episode=Number(episodeNumber.value);
   if(!Number.isInteger(season)||season<1||!Number.isInteger(episode)||episode<1)return;
   const url=`https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}`;
-  detailStream.src=url;
-  externalPlayerLink.href=url;
-  externalPlayerLink.hidden=false;
+  launchDetailPlayer(url);
 }
 async function changeSeriesSeason(){
   const title=T[cur];
@@ -761,11 +995,27 @@ async function playDetailStream(index){
   detailPlayButton.textContent="Loading player...";
 
   if(VIDEOS[index]){
+    detailVideoTitle=title;
+    detailVideo.onloadedmetadata=()=>{
+      resumeVideo(detailVideo,title);
+      detailVideo.play().catch(()=>{});
+    };
     detailVideo.src=VIDEOS[index];
     detailVideo.hidden=false;
     detailPlayButton.textContent="Hide player";
-    detailVideo.play().catch(()=>{});
     return;
+  }
+
+  if(window.self!==window.top){
+    detailPlayerWindow=window.open("about:blank","_blank");
+    if(detailPlayerWindow){
+      detailPlayerWindow.opener=null;
+      detailPlayerWindow.document.title="Loading player";
+      if(detailPlayerWindow.document.body)detailPlayerWindow.document.body.textContent="Preparing the player…";
+    }
+    detailPlayerMessage.textContent="Preparing the player link…";
+    detailPlayerMessage.hidden=false;
+    playerFrame.hidden=true;
   }
 
   try{
@@ -787,15 +1037,14 @@ async function playDetailStream(index){
       playSelectedSeriesEpisode(tmdbId);
     }else{
       const url=`https://vidcore.org/embed/movie/${tmdbId}`;
-      detailStream.src=url;
-      externalPlayerLink.href=url;
-      externalPlayerLink.hidden=false;
+      launchDetailPlayer(url);
     }
-    detailStream.hidden=false;
     detailPlayButton.textContent="Hide player";
   }catch(error){
     console.warn("Could not load the title player.",error);
     if(request!==detailStreamRequest||cur!==index||!modal.classList.contains("open"))return;
+    if(detailPlayerWindow&&!detailPlayerWindow.closed)detailPlayerWindow.close();
+    detailPlayerWindow=null;
     document.body.classList.remove("player-active");
     playerFrame.hidden=true;
     detailPlayerMessage.textContent="A player is not available for this title.";
@@ -823,6 +1072,7 @@ document.addEventListener("click",e=>{
   }
   const o=e.target.closest("[data-open]");if(o){pauseAutoTrailer();open_(+o.dataset.open);return}
   const f=e.target.closest(".nav-links button");if(f){
+    stopHomeSlideshow();
     filter=f.dataset.f;
     sessionStorage.setItem(FILTER_STORAGE_KEY,filter);
     query="";
@@ -838,9 +1088,13 @@ document.addEventListener("click",e=>{
       if(isCurrent)button.setAttribute("aria-current","page");
       else button.removeAttribute("aria-current");
     });
-    const featured=featuredIndexFor(filter);
-    if(featured>=0)setFeatured(featured);
+    if(filter==="all"&&HOME_HERO_SLIDES.length)setHomeSlide(heroSlideIndex);
+    else{
+      const featured=featuredIndexFor(filter);
+      if(featured>=0)setFeatured(featured);
+    }
     render();
+    startHomeSlideshow();
     return;
   }
   if(e.target===modal||e.target===x)closeTitleModal();
@@ -855,6 +1109,7 @@ function closeTitleModal(){
   document.body.classList.remove("modal-open");
   if(modalReturnFocus&&modalReturnFocus.isConnected)modalReturnFocus.focus();
   modalReturnFocus=null;
+  startHomeSlideshow();
 }
 document.addEventListener("focusin",event=>{
   if(modal.classList.contains("open")&&!modal.contains(event.target))document.getElementById("x").focus();
@@ -888,10 +1143,12 @@ q.oninput=()=>{
   query=q.value.trim();
   searchToken++;
   clearTimeout(searchTimer);
+  if(query)stopHomeSlideshow();
   T=CATALOG.slice();
   SEARCH_IDS=[];
   searchPending=Boolean(query);
   render();
+  if(!query)startHomeSlideshow();
   if(query)searchTimer=setTimeout(()=>searchCatalog(query,searchToken),250);
 };
 addEventListener("resize",()=>{if(query)limitSearchRows()},{passive:true});
@@ -902,7 +1159,12 @@ addEventListener("scroll",()=>{nav.classList.toggle("solid",scrollY>40);if(scrol
 const VIDEOS={};
 let feat=0;
 const fmt=s=>isFinite(s)?Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0"):"0:00";
-function stopPlayer(){vid.pause();vid.removeAttribute("src");vid.load();vid.hidden=false;player.querySelector(".ctrl").hidden=false;player.hidden=true;verr.hidden=true;hinfo.hidden=false;pp.textContent="▶"}
+function stopPlayer(){
+  if(heroVideoTitle)saveContinueWatching(vid,heroVideoTitle,true);
+  heroVideoTitle=null;
+  vid.onloadedmetadata=null;
+  vid.pause();vid.removeAttribute("src");vid.load();vid.hidden=false;player.querySelector(".ctrl").hidden=false;player.hidden=true;verr.hidden=true;hinfo.hidden=false;pp.textContent="▶";
+}
 function pauseAutoTrailer(){
   if (vid && !vid.paused) {
     vid.pause();
@@ -912,13 +1174,54 @@ function pauseAutoTrailer(){
 function setFeatured(i){
   if (!T[i]) return;
   stopPlayer();feat=i;const t=T[i],[a,b]=t[6].split(",");
+  const slideIndex=HOME_HERO_SLIDES.indexOf(i);
+  if(filter==="all"&&slideIndex>=0)heroSlideIndex=slideIndex;
   hero.classList.toggle("series-featured",t[1]==="Series");
   hero.style.setProperty("--a",a);hero.style.setProperty("--b",b);
-  hero.style.backgroundImage = backdropStyle(i);
-  hero.style.backgroundSize = "cover";
-  hero.style.backgroundPosition = "center top";
+  const nextBackdrop=activeHeroBackdrop===0?1:0;
+  const nextLayer=heroBackdropLayers[nextBackdrop];
+  nextLayer.style.backgroundImage=backdropStyle(i);
+  void nextLayer.offsetWidth;
+  nextLayer.classList.add("active");
+  if(activeHeroBackdrop>=0)heroBackdropLayers[activeHeroBackdrop].classList.remove("active");
+  activeHeroBackdrop=nextBackdrop;
   htag.textContent=t[1]+" · "+t[5]+" · "+t[2];
   ht.textContent=t[0];hd.textContent=t[7];
+  heroInfo.classList.remove("slide-enter");
+  void heroInfo.offsetWidth;
+  heroInfo.classList.add("slide-enter");
+  renderHeroSlideControls();
+}
+function renderHeroSlideControls(){
+  const visible=filter==="all"&&!query&&HOME_HERO_SLIDES.length>1;
+  heroSliderControls.hidden=!visible;
+  heroSlideDots.replaceChildren(...HOME_HERO_SLIDES.map((titleIndex,index)=>{
+    const dot=document.createElement("button");
+    dot.type="button";
+    dot.className="hero-slide-dot";
+    dot.dataset.heroSlide=String(index);
+    dot.setAttribute("aria-label",`Show slide ${index+1}: ${T[titleIndex][0]}`);
+    dot.setAttribute("aria-current",String(index===heroSlideIndex));
+    return dot;
+  }));
+}
+function setHomeSlide(index){
+  if(!HOME_HERO_SLIDES.length)return;
+  heroSlideIndex=(index%HOME_HERO_SLIDES.length+HOME_HERO_SLIDES.length)%HOME_HERO_SLIDES.length;
+  setFeatured(HOME_HERO_SLIDES[heroSlideIndex]);
+}
+function stopHomeSlideshow(){
+  if(heroSlideTimer){
+    clearInterval(heroSlideTimer);
+    heroSlideTimer=0;
+  }
+}
+function startHomeSlideshow(fromControl=false){
+  stopHomeSlideshow();
+  if(filter!=="all"||query||HOME_HERO_SLIDES.length<2||document.hidden||modal.classList.contains("open")||
+    !document.getElementById("player").hidden||window.matchMedia("(prefers-reduced-motion: reduce)").matches||
+    (!fromControl&&(heroBanner.matches(":hover")||heroBanner.contains(document.activeElement))))return;
+  heroSlideTimer=setInterval(()=>setHomeSlide(heroSlideIndex+1),7000);
 }
 function featuredIndexFor(section){
   if (!T.length) return -1;
@@ -938,6 +1241,9 @@ function featuredIndexFor(section){
 function playFeatured(autoPlay=false){
   const src=VIDEOS[feat];
   if(!src){
+    if(heroVideoTitle)saveContinueWatching(vid,heroVideoTitle,true);
+    heroVideoTitle=null;
+    vid.onloadedmetadata=null;
     vid.pause();
     vid.removeAttribute("src");
     vid.load();
@@ -953,6 +1259,8 @@ function playFeatured(autoPlay=false){
   player.querySelector(".ctrl").hidden=false;
   hinfo.hidden=true;
   player.hidden=false;verr.hidden=true;
+  heroVideoTitle=autoPlay?null:T[feat];
+  vid.onloadedmetadata=()=>{if(heroVideoTitle)resumeVideo(vid,heroVideoTitle)};
   vid.src=src;
   vid.loop = autoPlay;
   vid.muted = autoPlay;
@@ -965,21 +1273,57 @@ function playFeatured(autoPlay=false){
   }
 }
 hplay.onclick=()=>{
+  stopHomeSlideshow();
   if(VIDEOS[feat]){playFeatured(false);return}
   open_(feat);
   playDetailStream(cur);
 };
-hmore.onclick=()=>open_(feat);
+hmore.onclick=()=>{stopHomeSlideshow();open_(feat)};
 mplay.onclick=()=>detailPlayer.hidden?playDetailStream(cur):stopDetailStream();
 pp.onclick=()=>vid.paused?vid.play():vid.pause();
 vid.onclick=pp.onclick;
 vid.onplay=()=>pp.textContent="❚❚";
-vid.onpause=()=>pp.textContent="▶";
-vid.onended=()=>pp.textContent="▶";
-vid.ontimeupdate=()=>{if(vid.duration)seek.value=vid.currentTime/vid.duration*1000;tm.textContent=fmt(vid.currentTime)};
+vid.onpause=()=>{
+  pp.textContent="▶";
+  if(heroVideoTitle)saveContinueWatching(vid,heroVideoTitle,true);
+};
+vid.onended=()=>{
+  pp.textContent="▶";
+  if(heroVideoTitle)saveContinueWatching(vid,heroVideoTitle,true);
+  heroVideoTitle=null;
+};
+vid.ontimeupdate=()=>{
+  if(vid.duration)seek.value=vid.currentTime/vid.duration*1000;
+  tm.textContent=fmt(vid.currentTime);
+  if(heroVideoTitle)saveContinueWatching(vid,heroVideoTitle);
+};
+detailVideo.addEventListener("timeupdate",()=>saveContinueWatching(detailVideo,detailVideoTitle));
+detailVideo.addEventListener("pause",()=>saveContinueWatching(detailVideo,detailVideoTitle,true));
+detailVideo.addEventListener("ended",()=>saveContinueWatching(detailVideo,detailVideoTitle,true));
 seek.oninput=()=>{if(vid.duration)vid.currentTime=seek.value/1000*vid.duration};
 mu.onclick=()=>{vid.muted=!vid.muted;mu.textContent=vid.muted?"🔇":"🔊"};
 fs.onclick=()=>document.fullscreenElement?document.exitFullscreen():player.requestFullscreen();
-cl.onclick=stopPlayer;
+cl.onclick=()=>{stopPlayer();startHomeSlideshow()};
+heroPrevButton.addEventListener("click",()=>{
+  setHomeSlide(heroSlideIndex-1);
+  startHomeSlideshow(true);
+});
+heroNextButton.addEventListener("click",()=>{
+  setHomeSlide(heroSlideIndex+1);
+  startHomeSlideshow(true);
+});
+heroSlideDots.addEventListener("click",event=>{
+  const dot=event.target.closest("[data-hero-slide]");
+  if(!dot)return;
+  setHomeSlide(Number(dot.dataset.heroSlide));
+  startHomeSlideshow(true);
+});
+heroBanner.addEventListener("pointerenter",stopHomeSlideshow);
+heroBanner.addEventListener("pointerleave",startHomeSlideshow);
+heroBanner.addEventListener("focusin",stopHomeSlideshow);
+heroBanner.addEventListener("focusout",event=>{
+  if(!heroBanner.contains(event.relatedTarget))startHomeSlideshow();
+});
+document.addEventListener("visibilitychange",()=>document.hidden?stopHomeSlideshow():startHomeSlideshow());
 render();
 hydrateFromTMDB();
