@@ -46,6 +46,7 @@ const detailPlayer=document.getElementById("detailPlayer");
 const detailStream=document.getElementById("detailStream");
 const detailVideo=document.getElementById("detailVideo");
 const playerFrame=document.getElementById("playerFrame");
+const externalPlayerLink=document.getElementById("externalPlayerLink");
 const detailPlayerMessage=document.getElementById("detailPlayerMessage");
 const episodeControls=document.getElementById("episodeControls");
 const episodeSeason=document.getElementById("episodeSeason");
@@ -556,6 +557,8 @@ function stopDetailStream(){
   detailStreamRequest++;
   document.body.classList.remove("player-active");
   detailStream.removeAttribute("src");
+  externalPlayerLink.removeAttribute("href");
+  externalPlayerLink.hidden=true;
   detailStream.hidden=true;
   playerFrame.hidden=true;
   episodeControls.hidden=true;
@@ -614,7 +617,10 @@ function playSelectedSeriesEpisode(tmdbId){
   const season=Number(episodeSeason.value);
   const episode=Number(episodeNumber.value);
   if(!Number.isInteger(season)||season<1||!Number.isInteger(episode)||episode<1)return;
-  detailStream.src=`https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}`;
+  const url=`https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}`;
+  detailStream.src=url;
+  externalPlayerLink.href=url;
+  externalPlayerLink.hidden=false;
 }
 async function changeSeriesSeason(){
   const title=T[cur];
@@ -724,7 +730,10 @@ async function playDetailStream(index){
       episodeControls.hidden=false;
       playSelectedSeriesEpisode(tmdbId);
     }else{
-      detailStream.src=`https://vidcore.org/embed/movie/${tmdbId}`;
+      const url=`https://vidcore.org/embed/movie/${tmdbId}`;
+      detailStream.src=url;
+      externalPlayerLink.href=url;
+      externalPlayerLink.hidden=false;
     }
     detailStream.hidden=false;
     detailPlayButton.textContent="Hide player";

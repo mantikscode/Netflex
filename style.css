@@ -809,6 +809,28 @@ nav.solid {
   object-fit: contain;
 }
 
+.external-player-link {
+  display: block;
+  width: fit-content;
+  margin: 12px auto 0;
+  padding: 10px 16px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 999px;
+  color: #fff;
+  background: #222;
+  text-decoration: none;
+}
+
+.external-player-link:hover {
+  border-color: #3b82f6;
+  background: #2a2a2a;
+}
+
+.external-player-link:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
 .mb p.detail-player-message {
   max-width: none;
   margin: 0;

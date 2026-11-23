@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=showflix-icon-20261102">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=soft-player-corners-20261122">
+<link rel="stylesheet" href="style.css?v=external-player-fallback-20261123">
 </head>
 <body>
 <nav id="nav" aria-label="Main navigation">
@@ -77,6 +77,7 @@
           <iframe id="detailStream" title="Movie or series player" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" hidden></iframe>
           <video id="detailVideo" controls playsinline preload="metadata" hidden></video>
         </div>
+        <a class="external-player-link" id="externalPlayerLink" target="_blank" rel="noopener noreferrer" hidden>Open player in a new tab</a>
         <p class="detail-player-message" id="detailPlayerMessage" hidden></p>
       </div>
     </div>
@@ -85,6 +86,6 @@
 
 
 
-<script src="script.js?v=info-scroll-lock-20261122"></script>
+<script src="script.js?v=external-player-fallback-20261123"></script>
 </body>
 </html>
