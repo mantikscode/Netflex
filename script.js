@@ -55,6 +55,7 @@ const detailPlayButton=document.getElementById("mplay");
 const detailPoster=document.getElementById("detailPoster");
 const castList=document.getElementById("castList");
 const castCache=new Map();
+const tvmazeSeasonsCache=new Map();
 const imgBase="https://image.tmdb.org/t/p";
 function tmdbUrl(endpoint,params={}){
   const query=new URLSearchParams({endpoint,...params});
@@ -254,7 +255,14 @@ async function searchCatalog(term,token){
     if(!item)return;
     const name=item.title||item.name||"Untitled";
     const duplicateKey=`${type}:${name.trim().toLowerCase()}`;
-    if(seen.has(duplicateKey))return;
+    if(seen.has(duplicateKey)){
+      const existingIndex=indicesByTitle.get(duplicateKey);
+      if(existingIndex!==undefined&&type==="Series"){
+        if(source==="tmdb")T[existingIndex].tmdbId=item.id;
+        else T[existingIndex].tvmazeId=item.id;
+      }
+      return;
+    }
     seen.add(duplicateKey);
 
     let titleIndex=indicesByTitle.get(duplicateKey);
@@ -268,6 +276,7 @@ async function searchCatalog(term,token){
         entry.poster_url=show.image?.original||show.image?.medium||"";
         entry.backdrop_url=entry.poster_url;
         entry.contentKey=`tvmaze:show:${show.id}`;
+        entry.tvmazeId=show.id;
       }else{
         const itemDate=type==="Film"?item.release_date:item.first_air_date;
         entry=[name,type,(itemDate||"2026").slice(0,4),item.adult?"18+":(item.vote_average>=7?"13+":"PG"),"N/A",genreLabel(item.genre_ids?.[0]),`${a},${b}`,item.overview||"A title from TMDB."];
@@ -279,8 +288,9 @@ async function searchCatalog(term,token){
       T.push(entry);
       titleIndex=T.length-1;
       indicesByTitle.set(duplicateKey,titleIndex);
-    }else if(type==="Series"&&source==="tmdb"){
-      T[titleIndex].tmdbId=item.id;
+    }else if(type==="Series"){
+      if(source==="tmdb")T[titleIndex].tmdbId=item.id;
+      else T[titleIndex].tvmazeId=item.id;
     }
     SEARCH_IDS.push(titleIndex);
   });
@@ -409,6 +419,7 @@ async function hydrateFromTMDB(){
         entry.poster_url = show.image.original || show.image.medium;
         entry.backdrop_url = show.image.original || show.image.medium;
         entry.contentKey = `tvmaze:show:${show.id}`;
+        entry.tvmazeId = show.id;
         return entry;
       });
 
@@ -581,13 +592,43 @@ async function findTmdbId(title){
   if(match?.id)title.tmdbId=match.id;
   return title.tmdbId||null;
 }
-async function loadSeriesSeasons(tmdbId){
-  const response=await fetch(tmdbUrl(`/3/tv/${tmdbId}`,{language:"en-US"}));
-  if(!response.ok)throw new Error("TMDB TV details request failed");
-  const data=await response.json();
-  const seasons=(data.seasons||[]).filter(season=>season.season_number>0&&season.episode_count>0);
-  if(!seasons.length)throw new Error("No seasons found for this series");
+async function findTvmazeId(title){
+  if(title.tvmazeId)return title.tvmazeId;
+  const response=await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(title[0])}`);
+  if(!response.ok)throw new Error(`TVmaze show search failed (${response.status})`);
+  const results=await response.json();
+  const match=results.find(result=>result.show?.name?.trim().toLowerCase()===title[0].trim().toLowerCase());
+  if(!match?.show?.id)throw new Error("No matching TVmaze show found");
+  title.tvmazeId=match.show.id;
+  return title.tvmazeId;
+}
+async function loadTvmazeSeasons(title){
+  const tvmazeId=await findTvmazeId(title);
+  let seasons=tvmazeSeasonsCache.get(tvmazeId);
+  if(!seasons){
+    const response=await fetch(`https://api.tvmaze.com/shows/${tvmazeId}/seasons`);
+    if(!response.ok)throw new Error(`TVmaze season lookup failed (${response.status})`);
+    const data=await response.json();
+    seasons=(data||[])
+      .filter(season=>Number.isInteger(season.number)&&season.number>0)
+      .map(season=>({id:season.id,season_number:season.number,episode_count:season.episodeOrder||1}));
+    if(!seasons.length)throw new Error("No seasons found on TVmaze");
+    tvmazeSeasonsCache.set(tvmazeId,seasons);
+  }
   return seasons;
+}
+async function loadSeriesSeasons(tmdbId,title){
+  try{
+    const response=await fetch(tmdbUrl(`/3/tv/${tmdbId}`,{language:"en-US"}));
+    if(!response.ok)throw new Error(`TMDB TV details request failed (${response.status})`);
+    const data=await response.json();
+    const seasons=(data.seasons||[]).filter(season=>season.season_number>0&&season.episode_count>0);
+    if(!seasons.length)throw new Error("No seasons found on TMDB");
+    return seasons;
+  }catch(error){
+    console.warn("Could not load TMDB seasons; trying TVmaze.",error);
+    return loadTvmazeSeasons(title);
+  }
 }
 function setSeasonOptions(seasons){
   episodeSeason.replaceChildren(...seasons.map(season=>{
@@ -597,13 +638,28 @@ function setSeasonOptions(seasons){
     return option;
   }));
 }
-async function loadSeriesEpisodes(tmdbId,seasonNumber){
-  const response=await fetch(tmdbUrl(`/3/tv/${tmdbId}/season/${seasonNumber}`,{language:"en-US"}));
-  if(!response.ok)throw new Error("TMDB season details request failed");
-  const data=await response.json();
-  const episodes=data.episodes||[];
-  if(!episodes.length)throw new Error("No episodes found for this season");
-  return episodes;
+async function loadSeriesEpisodes(tmdbId,seasonNumber,title){
+  try{
+    const response=await fetch(tmdbUrl(`/3/tv/${tmdbId}/season/${seasonNumber}`,{language:"en-US"}));
+    if(!response.ok)throw new Error(`TMDB season details request failed (${response.status})`);
+    const data=await response.json();
+    const episodes=data.episodes||[];
+    if(!episodes.length)throw new Error("No episodes found on TMDB for this season");
+    return episodes;
+  }catch(error){
+    console.warn("Could not load TMDB episodes; trying TVmaze.",error);
+    const seasons=await loadTvmazeSeasons(title);
+    const season=seasons.find(item=>item.season_number===seasonNumber);
+    if(!season)throw new Error(`Season ${seasonNumber} was not found on TVmaze`);
+    const response=await fetch(`https://api.tvmaze.com/seasons/${season.id}/episodes`);
+    if(!response.ok)throw new Error(`TVmaze episode lookup failed (${response.status})`);
+    const episodes=await response.json();
+    const normalizedEpisodes=(episodes||[])
+      .filter(episode=>Number.isInteger(episode.number)&&episode.number>0)
+      .map(episode=>({episode_number:episode.number,name:episode.name||""}));
+    if(!normalizedEpisodes.length)throw new Error("No episodes found on TVmaze for this season");
+    return normalizedEpisodes;
+  }
 }
 function setEpisodeOptions(episodes){
   episodeNumber.replaceChildren(...episodes.map(episode=>{
@@ -632,7 +688,7 @@ async function changeSeriesSeason(){
   detailStream.hidden=true;
   detailPlayerMessage.hidden=true;
   try{
-    const episodes=await loadSeriesEpisodes(tmdbId,Number(episodeSeason.value));
+    const episodes=await loadSeriesEpisodes(tmdbId,Number(episodeSeason.value),title);
     if(request!==detailStreamRequest||cur!==index||T[index]!==title||!modal.classList.contains("open"))return;
     setEpisodeOptions(episodes);
     const firstEpisode=episodes[0].episode_number;
@@ -717,11 +773,11 @@ async function playDetailStream(index){
     if(request!==detailStreamRequest||cur!==index||!modal.classList.contains("open"))return;
     if(!tmdbId)throw new Error("No TMDB ID found for this title");
     if(title[1]==="Series"){
-      const seasons=await loadSeriesSeasons(tmdbId);
+      const seasons=await loadSeriesSeasons(tmdbId,title);
       if(request!==detailStreamRequest||cur!==index||!modal.classList.contains("open"))return;
       const firstSeason=seasons[0].season_number;
       setSeasonOptions(seasons);
-      const episodes=await loadSeriesEpisodes(tmdbId,firstSeason);
+      const episodes=await loadSeriesEpisodes(tmdbId,firstSeason,title);
       if(request!==detailStreamRequest||cur!==index||!modal.classList.contains("open"))return;
       const firstEpisode=episodes[0].episode_number;
       setEpisodeOptions(episodes);
