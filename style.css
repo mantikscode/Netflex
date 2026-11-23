@@ -93,7 +93,25 @@ nav.solid {
   border-bottom: 1px solid rgba(255,255,255,.06);
 }
 
+body.landing-open nav>.search {
+  display: none;
+}
+
+body.landing-open .nav-links {
+  gap: 0;
+}
+
+body.landing-open .nav-links button:not([data-f="list"]) {
+  display: none;
+}
+
 .logo {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  line-height: 1;
   font-family: "Bebas Neue",Impact,sans-serif;
   font-size: 34px;
   letter-spacing: 2px;
@@ -175,6 +193,307 @@ nav.solid {
   background-color: #1e1e24;
   box-shadow: 0 0 0 3px rgba(59,130,246,.2);
   outline: none;
+}
+
+.landing {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  background: #080a0f;
+}
+
+.landing-mosaic {
+  position: absolute;
+  inset: -18px;
+  z-index: -2;
+  display: grid;
+  grid-template-columns: repeat(5,minmax(0,1fr));
+  grid-template-rows: repeat(3,minmax(0,1fr));
+  gap: 8px;
+  opacity: .78;
+  filter: blur(5px) saturate(.88);
+  transform: scale(1.04);
+}
+
+.landing-tile {
+  min-width: 0;
+  min-height: 0;
+  background-color: #111827;
+  background-position: center;
+  background-size: cover;
+  animation: landingTileIn .7s ease both;
+}
+
+.landing-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg,rgba(5,7,12,.62),rgba(5,7,12,.4) 48%,rgba(5,7,12,.7)),radial-gradient(ellipse at center,transparent 0,rgba(0,0,0,.3) 90%);
+}
+
+.landing-content {
+  width: min(520px,calc(100% - 36px));
+  padding: calc(92px + env(safe-area-inset-top,0px)) 0 32px;
+  text-align: center;
+}
+
+.landing-title {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 26px;
+  font-family: "Bebas Neue",Impact,sans-serif;
+  font-size: clamp(72px,12vw,112px);
+  font-weight: 400;
+  letter-spacing: -2px;
+  line-height: .9;
+  text-shadow: 0 8px 36px rgba(0,0,0,.5);
+}
+
+.landing-title-show {
+  color: #ff5964;
+}
+
+.landing-title-flix {
+  color: #08c6db;
+}
+
+.landing-search {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  padding: 5px;
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 999px;
+  background: rgba(25,29,36,.75);
+  box-shadow: 0 12px 40px rgba(0,0,0,.32);
+  backdrop-filter: blur(14px);
+}
+
+.landing-search input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding: 0 18px;
+  border: 0;
+  outline: 0;
+  color: #fff;
+  background: transparent;
+  font: inherit;
+}
+
+.landing-search input::placeholder {
+  color: rgba(255,255,255,.68);
+}
+
+.landing-search button {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+  color: #08111d;
+  background: #63a8ff;
+  transition: background .2s,transform .2s;
+}
+
+.landing-search button:hover {
+  transform: scale(1.05);
+  background: #8bc0ff;
+}
+
+.landing-search svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.landing-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.landing-action {
+  min-height: 42px;
+  padding: 0 22px;
+  border: 1px solid rgba(255,255,255,.27);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(12,15,20,.62);
+  font-size: 14px;
+  font-weight: 650;
+  backdrop-filter: blur(8px);
+  transition: transform .2s,background .2s,border-color .2s;
+}
+
+.landing-action:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,.66);
+  background: rgba(255,255,255,.12);
+}
+
+.landing-action.primary {
+  border-color: #63a8ff;
+  color: #06101c;
+  background: #63a8ff;
+}
+
+.landing-action.primary:hover {
+  border-color: #8bc0ff;
+  background: #8bc0ff;
+}
+
+.landing-action.primary span {
+  margin-left: 6px;
+  font-size: 10px;
+}
+
+.holiday-effects {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  display: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+body.holiday-visible .holiday-effects {
+  display: block;
+}
+
+.holiday-flake {
+  position: absolute;
+  display: block;
+  color: #f8fbff;
+  line-height: 1;
+  text-shadow: 0 0 8px rgba(255,255,255,.75);
+  will-change: transform;
+  animation: holidaySnow linear infinite;
+}
+
+.holiday-garland {
+  position: fixed;
+  top: calc(68px + env(safe-area-inset-top,0px));
+  left: 0;
+  z-index: 21;
+  display: none;
+  width: 100%;
+  height: 24px;
+  align-items: flex-start;
+  justify-content: space-around;
+  padding: 0 4%;
+  pointer-events: none;
+}
+
+body.holiday-visible .holiday-garland {
+  display: flex;
+}
+
+.holiday-garland::before {
+  position: absolute;
+  top: -8px;
+  right: 3%;
+  left: 3%;
+  height: 24px;
+  border-bottom: 1px solid rgba(226,232,240,.42);
+  border-radius: 0 0 50% 50%;
+  content: "";
+}
+
+.holiday-garland span {
+  position: relative;
+  width: 9px;
+  height: 13px;
+  margin-top: 5px;
+  border-radius: 45% 45% 50% 50%;
+  background: #ef4444;
+  box-shadow: 0 0 10px currentColor;
+  animation: holidayTwinkle 2.2s ease-in-out infinite alternate;
+}
+
+.holiday-garland span::before {
+  position: absolute;
+  top: -3px;
+  left: 2px;
+  width: 5px;
+  height: 4px;
+  border-radius: 2px 2px 0 0;
+  background: #b6b6b6;
+  content: "";
+}
+
+.holiday-garland span:nth-child(3n+1) {
+  color: #ef4444;
+  background: #ef4444;
+}
+
+.holiday-garland span:nth-child(3n+2) {
+  color: #22c55e;
+  background: #22c55e;
+  animation-delay: -.8s;
+}
+
+.holiday-garland span:nth-child(3n) {
+  color: #facc15;
+  background: #facc15;
+  animation-delay: -1.5s;
+}
+
+.holiday-toggle {
+  position: fixed;
+  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom,0px));
+  z-index: 25;
+  display: none;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(134,239,172,.56);
+  border-radius: 50%;
+  color: #f0fdf4;
+  background: rgba(15,46,34,.92);
+  box-shadow: 0 4px 18px rgba(0,0,0,.4),0 0 18px rgba(34,197,94,.22);
+  transition: transform .2s,background .2s,border-color .2s;
+}
+
+body.holiday-home .holiday-toggle {
+  display: grid;
+}
+
+.holiday-toggle:hover {
+  transform: translateY(-2px) rotate(-8deg);
+  border-color: #86efac;
+  background: #166534;
+}
+
+.holiday-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body.holiday-active:not(.holiday-visible) .holiday-toggle,
+body:not(.holiday-active) .holiday-toggle {
+  border-color: rgba(255,255,255,.28);
+  color: #d1d5db;
+  background: rgba(24,24,27,.92);
+  box-shadow: 0 4px 18px rgba(0,0,0,.4);
 }
 
 .hero {
@@ -1007,6 +1326,52 @@ footer {
     font-size: 13px;
   }
 
+  .holiday-garland {
+    top: calc(85px + env(safe-area-inset-top,0px));
+    padding-inline: 5%;
+  }
+
+  .holiday-toggle {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom,0px));
+    width: 42px;
+    height: 42px;
+  }
+
+  .landing-mosaic {
+    inset: -12px;
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    grid-template-rows: repeat(5,minmax(0,1fr));
+    gap: 5px;
+  }
+
+  .landing-content {
+    width: min(460px,calc(100% - 32px));
+    padding-top: calc(116px + env(safe-area-inset-top,0px));
+  }
+
+  .landing-title {
+    margin-bottom: 22px;
+    font-size: clamp(68px,20vw,96px);
+  }
+
+  .landing-actions {
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 16px;
+  }
+
+  .landing-action {
+    min-height: 40px;
+    padding-inline: 16px;
+    font-size: 13px;
+  }
+
+  .landing-action.primary {
+    flex: 1 0 100%;
+    max-width: 260px;
+  }
+
   .hero {
     min-height: 78vh;
     min-height: 78svh;
@@ -1183,6 +1548,32 @@ footer {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes landingTileIn {
+  from {
+    opacity: .35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes holidaySnow {
+  to {
+    transform: translate3d(var(--snow-drift),115vh,0) rotate(360deg);
+  }
+}
+
+@keyframes holidayTwinkle {
+  from {
+    filter: brightness(.7);
+    opacity: .7;
+  }
+  to {
+    filter: brightness(1.3);
+    opacity: 1;
   }
 }
 

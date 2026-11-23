@@ -7,11 +7,11 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=showflix-icon-20261102">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=aligned-carousel-arrows-20261123">
+<link rel="stylesheet" href="style.css?v=christmas-home-20261123">
 </head>
-<body>
+<body class="holiday-active">
 <nav id="nav" aria-label="Main navigation">
-  <span class="logo"><span class="logo-show">show</span><span class="logo-flix">Flix</span></span>
+  <button class="logo" id="logo" type="button" aria-label="Open showFlix welcome screen"><span class="logo-show">show</span><span class="logo-flix">Flix</span></button>
   <div class="nav-links">
     <button class="on" type="button" data-f="all" aria-current="page">Home</button><button type="button" data-f="Film">Movies</button><button type="button" data-f="Series">Series</button><button class="hm" type="button" data-f="list">My List</button>
   </div>
@@ -19,6 +19,31 @@
 
   <input class="search" id="q" placeholder="Search titles" aria-label="Search titles">
 </nav>
+
+<div class="holiday-effects" id="holidayEffects" aria-hidden="true"></div>
+<div class="holiday-garland" aria-hidden="true">
+  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+</div>
+<button class="holiday-toggle" id="holidayToggle" type="button" aria-label="Turn off Christmas effects" aria-pressed="true" title="Turn off Christmas effects">
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2v20M4.6 6.3l14.8 11.4M19.4 6.3 4.6 17.7M8 4l4 2 4-2M8 20l4-2 4 2M3.5 10l3.8 2-3.8 2M20.5 10l-3.8 2 3.8 2"></path></svg>
+</button>
+
+<section class="landing" id="landing" aria-label="Welcome to showFlix" hidden>
+  <div class="landing-mosaic" id="landingMosaic" aria-hidden="true"></div>
+  <div class="landing-shade" aria-hidden="true"></div>
+  <div class="landing-content">
+    <h1 class="landing-title"><span class="landing-title-show">show</span><span class="landing-title-flix">Flix</span></h1>
+    <form class="landing-search" id="landingSearchForm" role="search">
+      <input id="landingSearch" type="search" placeholder="Search movies and shows..." aria-label="Search movies and shows">
+      <button type="submit" aria-label="Search titles"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.5 4.5"></path></svg></button>
+    </form>
+    <div class="landing-actions" aria-label="Browse the catalog">
+      <button class="landing-action primary" type="button" data-landing-filter="all">Explore now <span aria-hidden="true">▶</span></button>
+      <button class="landing-action" type="button" data-landing-filter="Film">Movies</button>
+      <button class="landing-action" type="button" data-landing-filter="Series">TV Shows</button>
+    </div>
+  </div>
+</section>
 
 <header class="hero" id="hero">
   <div class="hero-backdrops" aria-hidden="true">
@@ -55,7 +80,7 @@
 
 <main class="rows" id="rows"></main>
 
-<footer><span>Questions? Visit the Help Centre</span><span>Terms of Use</span><span>Privacy</span><span>Devices</span><span>© 2026 Jeremy Kioko. All rights reserved.</span></footer>
+<footer id="footer"><span>Questions? Visit the Help Centre</span><span>Terms of Use</span><span>Privacy</span><span>Devices</span><span>© 2026 Jeremy Kioko. All rights reserved.</span></footer>
 
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
   <div class="sheet">
@@ -95,6 +120,6 @@
 
 
 
-<script src="script.js?v=carousel-click-resume-20261123"></script>
+<script src="script.js?v=christmas-home-20261123"></script>
 </body>
 </html>
